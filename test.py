@@ -1,11 +1,15 @@
+from dataclasses import dataclass
+
 
 class Grid:
-    def __init__(self, r=None, c=None, rlabels=None, clabels=None, reorder=None):
-        self.r=r
-        self.c=c
-        self.rlabels=rlabels
-        self.clabels=clabels
-        self.reorder=reorder
+    r=None
+    c=None
+    rlabels=None
+    clabels=None
+    reorder=None
+
+    def __init__(self, **kwargs):
+        self.__dict__.update(kwargs)
 
     def split(self, matrix, pool=True):
         splits = np.array([np.hsplit(x, self.c[:-1]) for x in np.split(matrix, self.r[:-1])], dtype=object)
@@ -17,11 +21,13 @@ class Grid:
 
 
 class StimObject:
-    def __init__(self, label=None, type=None, color=None, index=None):
-        self.label = label
-        self.type = type
-        self.color = color
-        self.index = index
+    label=None
+    type=None
+    color=None
+    index=None
+
+    def __init__(self, **kwargs):
+        self.__dict__.update(kwargs)
 
     def __repr__(self):
         return "StimObject:%s %s°(%s)" % (self.type, str(self.label), str(self.index))
@@ -37,15 +43,17 @@ class StimObject:
 
 
 class StimEvent:
-    def __init__(self, on=None, off=None, stim=None, ses=None, pos_ses=None, pos_glob=None):
-        self.on = on
-        self.off = off
-        self.trialOn = None
-        self.trialOff = None
-        self.stim = stim
-        self.ses = ses
-        self.pos_ses = pos_ses
-        self.pos_glob = pos_glob
+    on=None
+    off=None
+    trialOn=None
+    trialOff=None
+    stim=None
+    ses=None
+    pos_ses=None
+    pos_glob=None
+
+    def __init__(self, **kwargs):
+        self.__dict__.update(kwargs)
 
     def __repr__(self):
         return "StimEvent: %s (on=%s:off=%s)" % (self.stim.__repr__(), str(self.on), str(self.off))
@@ -74,8 +82,19 @@ class StimEvent:
         if self.trialOff is not None:
             self.trialOff = self.trialOff - shift
 
+
 class StimTrace:
-    def __init__(self, stimEvents, stimObjects, end=None):
+    stimEvents=None
+    end=None
+    stimObjects=None
+    stimLen=None
+    minTrialLen=None
+
+    reorder=None
+    grid=None
+    trialLen=None
+
+    def __init__(self, stimEvents=None,end=None,stimObjects=None):
         self.stimEvents = stimEvents
         self.end = end
         self.stimObjects = stimObjects
@@ -129,8 +148,10 @@ class StimTrace:
         self.trialLen = self.stimEvents[0].trialLen()
         self.reorder = np.argsort(a=self.stimEvents, kind='stable')
 
+
 class Session:  # or neuron??
     '''convert between suite2pdata and internal modules'''
+
 
     def __init__(self, index=None, stimTrace=None, neurons=None, end_glob=None, start_glob=None, end=None,
                  neurons_vis_driven=None, type=None):
@@ -148,33 +169,31 @@ class Session:  # or neuron??
 
 
 class Neuron:
-    def __init__(self, dff=None, idx=None, idx_glob=None,
-                 sessions=None, runs=None,
-                 snr=None, spks=None, auc=None,
-                 roiMask=None, trialsMat=None, avgRes=None,
-                 visdriven=None, js_dists=None):
-        self.dff = dff
-        self.idx = idx
-        self.idx_glob = idx_glob
-        self.sessions = sessions
-        self.runs = runs
+    dff = None
+    idx = None
+    idx_glob = None
+    sessions = None
+    runs = None
 
-        # qc and stuff
-        self.snr = snr
-        self.spks = spks
-        self.auc = auc
+    # qc and stuff
+    snr = None
+    spks = None
+    auc = None
 
-        # plotting properties
-        self.roiMask = roiMask
-        self.trialsMat = trialsMat
-        self.avgRes = avgRes
+    # plotting properties
+    roiMask = None
+    trialsMat = None
+    avgRes = None
 
-        # statistics
-        self.visdriven = visdriven
-        self.js_dists = js_dists
+    # statistics
+    visdriven = None
+    js_dists = None
 
-        self.plot_label = None
-        self.plot_title = None
+    plot_label = None
+    plot_title = None
+
+    def __init__(self, **kwargs):
+        self.__dict__.update(kwargs)
 
     def __str__(self):
         return str(self.idx_glob)
@@ -270,22 +289,21 @@ class NeuronAcrossTime:
 
 
 class Run:
-    def __init__(self, sessions=None, stimTrace=None, mouse=None, idx=None, cond=None, day=None,
-                 date=None, paradigm=None, magnification=None, notes=None, bad_day=None, dprime=None):
-        self.sessions = sessions
-        self.stimTrace = stimTrace
+    sessions=None
+    stimTrace=None
+    mouse=None
+    idx=None
+    date=None
+    paradigm=None # or type, e.g.long term learning / suture-resuture
+    magnification=None #order of imaging
+    notes=None #e.g. 'magnification on'
+    bad_day=None
+    cond=None
+    day=None
+    dprime=None
 
-        # meta
-        self.mouse = mouse
-        self.idx = idx
-        self.date = date
-        self.paradigm = paradigm # or type, e.g.long term learning / suture-resuture
-        self.magnification = magnification #order of imaging
-        self.notes = notes #e.g. 'magnification on'
-        self.bad_day = bad_day
-        self.cond = cond
-        self.day = day
-        self.dprime = dprime
+    def __init__(self, **kwargs):
+        self.__dict__.update(kwargs)
 
     def __str__(self):
         return "%s_%s_%s_%s" % (str(self.idx), self.name, self.mouse, self.date)
@@ -345,6 +363,13 @@ class SpontBehavior:
         neuron.kurtosis = scipy.stats.kurtosis(dff) #kurtosis
         neuron.stdev    = np.std(dff) #stdev
         neuron.sampen   = scipy.stats.entropy(dff) #sampen
+
+class Foo:
+    def __init__(self, **kwargs):
+        self.__dict__.update(kwargs)
+
+
+
 
 ########### load one run's data #######################################
 
@@ -461,8 +486,7 @@ for i, stimevents_ses in enumerate(stimEvents_bySes):
         event.zero(sesStart)
     stimTrace = StimTrace(stimEvents=stimevents_ses,
                            end=sesEnd - sesStart,
-                           stimObjects=orientations,
-                           freq=freq)
+                           stimObjects=orientations)
     stimTrace.setGrid(shiftOn, shiftOff)
     sessions[sesIdx].stimTrace = stimTrace
     sessions[sesIdx].type = 'stim'
@@ -515,14 +539,19 @@ for neu in sessions[1].neurons_vis_driven:
 
 
 ############## all done ################
+class Foo:
+    test=None
+    test2=None
+    def __init__(self, **kwargs):
+        self.__dict__.update(kwargs)
 
 import sqlite3
 connection = sqlite3.connect('test.db')
 
+foo=Foo(test='test',test2='2')
+for key in vars(foo).keys():
+    print(key)
 
-
-
-print('')
 
 # session identifier
 # run identifier
@@ -538,15 +567,15 @@ what a neuron looks like across all stimulations
 
 '''
 
+import pickle
+
+with open('test.pickle', 'ab') as file:
+    pickle.dump(sessions, file)
+    pickle.dump(item, file, pickle.HIGHEST_PROTOCOL)
 
 
-
-
-
-
-
-
-
+with open('test.pickle', 'rb') as file:
+    pickle.load(file)
 
 
 
