@@ -7,9 +7,9 @@ import time
 log_time = time.strftime("%Y%m%d%H%M")
 
 ###################### log #########################
-old_stdout = sys.stdout
-log_file = open('log_'+log_time+'.txt','w')
-sys.stdout = log_file
+#old_stdout = sys.stdout
+#log_file = open('log_'+thismouse+'_'+str(thisrun)+'_'+log_time+'.txt','w')
+#sys.stdout = log_file
 
 #####################################################
 def loadmat(filename):
@@ -35,62 +35,53 @@ def run_names(data):
 
 #mouseDir = 'D:\\333_Galaxy Maotuan\\I love studying\\2022 winter\\lab\\papers\\2022-2-18'
 mouseDir = 'C:\\Users\\selinali\\lab\\Mice'
-mice = ['Sut4', 'Sut1', 'Sut2', 'Sut3', 'T01', 'T02', 'T03', 'T04']
-# original order - mice = ['T01', 'T02', 'T03', 'T04', 'Sut1', 'Sut2', 'Sut3', 'Sut4']
-
+#mice = ['T03','T02','Sut3']
+mice = ['T01', 'T02', 'T03', 'T04', 'Sut1', 'Sut2', 'Sut3', 'Sut4']
+plotFolder = 'C:\\Users\\selinali\\lab\\RDE20141\\2022-7-7-plots'
 
 with open('mice_days.pickle', 'rb') as file:
     mice_days=pickle.load(file)
-    reo=[7,4,5,6,0,1,2,3]
+    reo=[2,1,6]
     mice_days=mice_days[reo,:,:]
     mice_n_files = np.sum(np.sum(mice_days,axis=2),axis=1)
 
 for i, mouse in enumerate(mice):
-    allfiles = glob.glob(mouseDir + '\\' + mouse + '\\*_Suite2p_*.mat')
-    print(mouse)
-    if len(allfiles)>0:
-        assert mice_n_files[i] == len(allfiles)
+    #if mouse==thismouse:
+        allfiles = glob.glob(mouseDir + '\\' + mouse + '\\*_Suite2p_*.mat')
         print(mouse)
-        names = run_names(mice_days[i])
-        for j, file in enumerate(allfiles):
-            if mouse=='Sut1' and j>14:
-                continue
-            if not glob.glob("%s_%s_%s_" % (mouse, str(j).zfill(2), names[j]) + '*.pickle'):
+        if len(allfiles)>0:
+            assert mice_n_files[i] == len(allfiles)
+            print(mouse)
+            names = run_names(mice_days[i])
+            for j, file in enumerate(allfiles):
                 print(names[j] + ' ' + str(j))
-                data = loadmat(file)['suite2pData']
-                magicpixie.pixiedust(data=data,name=names[j],idx=j,cut_sessions=True if i>3 else False)
+                '''                filename = glob.glob("%s_%s_%s_" % (mouse, str(j).zfill(2), names[j]) + '*.pickle')[0]
+                                with open(filename,'wb') as file:
+                                    run=pickle.load(file)
+                                    roiMask = session.neurons[0].roiMask
+                                    roiMask.circs=None
+                                    roiMask.med=None
+                                    roiMask.fills=None
+                                    roiMask.box=None
+                                    for session in run.sessions:
+                                        session.ghostNeuron=magicpixie.Neuron(idx=-1, idx_glob=-1, sessions=session, runs=j, roiMask=roiMask)
+                '''
+                ######################################### 7-12 #############################################################
+                #if j==thisrun:
+                try:
+                    filename=glob.glob("%s_%s_%s_" % (mouse, str(j).zfill(2), names[j]) + '*.pickle')[0]
+                except:
+                    data = loadmat(file)['suite2pData']
+                    magicpixie.pixiedust(data=data,name=names[j],idx=j)
+                    filename = glob.glob("%s_%s_%s_" % (mouse, str(j).zfill(2), names[j]) + '*.pickle')[0]
+                magicpixie.sparkles(filename=filename,plotFolder=plotFolder,cut_sessions=True if reo[i]>3 else False, roi=True,trace=True,trialsMat=True)
+                ######################################### 7-12 #############################################################
+                '''
+                n_ses = len(data.startIdx)
+                sum_n_ses = sum_n_ses + n_ses
+                n_neurons[i][j] = [len(data.cellIdx)]*n_ses
+                print(n_neurons[i][j])'''
 
-        '''
-        n_ses = len(data.startIdx)
-        sum_n_ses = sum_n_ses + n_ses
-        n_neurons[i][j] = [len(data.cellIdx)]*n_ses
-        print(n_neurons[i][j])
-        '''
-
-sys.stdout = old_stdout
-log_file.close()
-
-from magicpixie import *
-acrossdayidxs = np.swapaxes(loadmat('Sut4CellIndex.mat')['cellindexalign'], 0,1)
-acrossdayidxs=np.delete(acrossdayidxs,7,0)
-neurons_across_days = np.empty([acrossdayidxs.shape[0]*2,acrossdayidxs.shape[1]],dtype=Neuron)
-
-allfiles = glob.glob('Sut4_*.pickle')
-cnt = 0
-for filename, dayidxs in zip(allfiles, acrossdayidxs):
-    print(filename)
-    with open(filename, 'rb') as file:
-        run=pickle.load(file)
-    file.close()
-    neuronidxs = [x-1 for x in dayidxs if x > 0]
-    temp = np.empty([len(neuronidxs),2],dtype=Neuron)
-    print(len(neuronidxs)==len(run.sessions[0].neurons))
-    for session in run.sessions[0:2]:
-        for i, idx in enumerate(dayidxs):
-            idx=idx-1
-            if idx>=0:
-                neurons_across_days[cnt, i] = session.neurons[idx]
-                #neuron.plotTrace()
-                #neuron.plotTrialsMat()
-        cnt=cnt+1
+#sys.stdout = old_stdout
+#log_file.close()
 

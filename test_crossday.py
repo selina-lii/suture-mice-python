@@ -35,7 +35,7 @@ for i, mouse in enumerate(mice):
 np.save('n_neurons.npy',n_neurons,allow_pickle=True)
 n_neurons=np.load('n_neurons.npy',allow_pickle=True)
 
-n_allNeurons = int( max(max([max(v) for v in n_neurons if v is not None])) * 1.7)
+n_allNeurons = int(max(max([max(v) for v in n_neurons if v is not None])) * 1.7)
 
 inhabitants_of_table = np.empty([sum_n_ses, n_allNeurons], dtype=bool)
 
@@ -50,3 +50,4 @@ for i, n_neu_mice in enumerate(n_neurons):
             for _ in range(len(n_neu_run)):
                 inhabitants_of_table[cursor][cross_day_idxs[i][j]]=True
                 cursor=cursor+1
+
