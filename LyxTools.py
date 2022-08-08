@@ -2,7 +2,7 @@
 
 import matplotlib.pyplot as plt
 import pymongo
-
+import os
 ################################## <MATLAB - PYTHON INTERFACES> #############################################
 def loadmat(filename):
     import mat73
@@ -122,13 +122,17 @@ def sf_id(col, _id, fn, val):
 def sf_config(db,fieldname,value):
     db.config.update_one({},{'$set':{fieldname:value}})
 
+#loop through one field in all documents in a collection
+def gf(col,fieldname):
+    return col.find({},{fieldname:1})
+
 #rename field
 def rnf(col,fieldname,new):
     col.update_many({}, {"$rename": {fieldname: new}})
 
 #clear all documents from collection
 def clear_col(db):  # CAREFUL!!!!!!!!!!!!!!!!!!!!
-    db.neuron_backup.delete_many({})
+    db.neu_run_spont.delete_many({})
     db.stim_event_backup.delete_many({})
     db.session.delete_many({})
 
@@ -144,3 +148,15 @@ def savePlot(ax,filename):
     fig.savefig(filename,bbox_inches='tight',pad_inches=0.2)
     fig.clear()
     plt.close(fig)
+
+def savePlot_fig(fig,filename):
+    fig.savefig(filename,bbox_inches='tight',pad_inches=0.2)
+    fig.clear()
+    plt.close(fig)
+
+
+
+
+def mkdir(fp):
+    if not os.path.isdir(fp):
+        os.mkdir(fp)

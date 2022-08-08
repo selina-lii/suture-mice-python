@@ -1,31 +1,39 @@
 import tkinter as tk
 from tkinter import ttk
 import numpy as np
-import pickle
+from LyxTools import sf_id
 
 # for clicking days for each mice.
-##this is ... soo messy but i don't wanna tidy it up
 
 class Example(tk.LabelFrame):
-    mice = ['T01', 'T02', 'T03', 'T04', 'Sut1', 'Sut2', 'Sut3', 'Sut4']
+    mice = ['T01', 'T02', 'T03', 'Sut1', 'Sut2', 'Sut3', 'Sut4']
     mouse_cursor = 0
-    hours = ['0025', '005', '01', '04', '06', '12', '24', '48', '72', '96', '120', '144', '168']
-    condition = ['B', 'S', 'U', 'R']
+    hours = ['0025', '005', '01', '04', '06', '08', '12', '24', '48', '72', '96', '120', '144', '168']
+    conditions = ['B', 'S', 'U', 'R']
 
-    buttons = np.empty([len(condition), len(hours)],dtype=tk.Checkbutton)
-    checkvars = np.empty([len(condition), len(hours)],dtype=tk.IntVar)
-    data = np.zeros([len(mice),len(condition), len(hours)])
+    buttons = np.empty([len(conditions), len(hours)],dtype=tk.Checkbutton)
+    checkvars = np.empty([len(conditions), len(hours)],dtype=tk.IntVar)
+    data = np.zeros([len(mice),len(conditions), len(hours)],dtype='bool')
 
     def __init__(self, *args, **kwargs):
         try:
-            with open('mice_days.pickle', 'rb') as file:
-                self.data = pickle.load(file)
+            self.data=np.asarray(db.config.find_one({},{'gui_mice_days':1})['gui_mice_days'])
+            #Use when modifying hours or conditions
+            '''            mice=list(db.mouse.find({},{'name_sess':1}).sort('_id'))
+            for mouse in mice:
+                id = mouse['_id']
+                print(id)
+                name_sess=mouse['name_sess']
+                for name in name_sess:
+                    cond=name[0]
+                    hour=name[1:]
+                    self.data[id,self.conditions.index(cond),self.hours.index(hour)]=True'''
         except:
             pass
 
         tk.LabelFrame.__init__(self, *args, **kwargs)
 
-        for i,cond in enumerate(self.condition):
+        for i,cond in enumerate(self.conditions):
             for j,hour in enumerate(self.hours):
                 var = tk.IntVar()
                 button = ttk.Checkbutton(self, variable=var, onvalue=1, offvalue=0, text=cond + hour, command=self.click(var))
@@ -62,14 +70,20 @@ class Example(tk.LabelFrame):
                         self.checkvars[i, j].set(int(self.data[self.mouse_cursor, i, j]))
 
     def save(self):
-        with open('mice_days.pickle', 'wb') as file:
-            pickle.dump(self.data, file)
-
+        db.config.update_one({},{'$set':{'gui_mice_days':self.data.tolist()}})
+        for mouse in db.mouse.find({}, {'_id':1}):
+            name_sess=[]
+            id = mouse['_id']
+            data=self.data[id]
+            for data_row, cond in zip(data, self.conditions):
+                for d, hour in zip(data_row, self.hours):
+                    if d==True:
+                        name_sess.append(cond + hour)
+            sf_id(db.mouse,id,'name_sess',name_sess)
 
 root = tk.Tk()
 Example(root).pack(side="top", fill="both", expand=True, padx=10, pady=10)
 root.mainloop()
 
-with open('mice_days.pickle', 'rb') as file:
-    data=pickle.load(file)
+
 
