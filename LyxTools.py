@@ -3,16 +3,15 @@
 import matplotlib.pyplot as plt
 import pymongo
 import os
+import mat73
 ################################## <MATLAB - PYTHON INTERFACES> #############################################
 def loadmat(filename):
-    import mat73
-    import scipy.io
     try:
         data = mat73.loadmat(filename, use_attrdict=True)
+        return data
     except:
         # not using this as for now.. instead converted non-7.3 files into v7.3 for sut3/4
-        data = scipy.io.loadmat(filename, struct_as_record=True, squeeze_me=True)
-    return data
+        Exception('Reading of non-7.3 file is not supported now. Please convert to v7.3 in MATLAB and try again.')
 
 def intarr(arr, mat2py=False):
     if mat2py:
@@ -23,64 +22,36 @@ def intarr(arr, mat2py=False):
 class DBinterface:
     properties = None
 
-    def __init__(self, iterable=(), **kwargs):
+    def __init__(self, _id, iterable=(), **kwargs):
         self.__dict__.update(iterable, **kwargs)
+        self._id=_id
         try:
             self.properties = kwargs
         except:
             pass
 
-    def insert(self, col):
-        return col.insert_one(self.properties)
-    #obj.properties.update(key=val,...)
+    def insert(self, col, overwrite=True):
+        try:
+            col.insert_one(self.properties)
+        except:
+            if overwrite:
+                col.delete_one({'_id': self._id})
+                col.insert_one(self.properties)
+            else:
+                print('%s: document already exists' % self._id)
 
-
-# where all the macro/exp level info go
-def set_config(db):
-    name_mice = ['T01', 'T02', 'T03', 'Sut1', 'Sut2', 'Sut3', 'Sut4']
-    hours = ['0025', '005', '01', '04', '06', '12', '24', '48', '72', '96', '120', '144', '168']
-    conditions = ['B', 'S', 'U', 'R']
-
-    inputdir='C:\\Users\\selinali\\lab\\Mice'
-    workdir='C:\\Users\\selinali\\lab\\sut'
-    trialsmatdir='2022-7-22-plots\\trialsmat'
-
-    stim_labels = [0, 45, 90, 135, 180, 225, 270, 315]
-    stim_colors = ['#AC041B', '#F8693D', '#EDB120', '#21C40F', '#67DCD5', '#2A46FA', '#A81CBF', '#FF1493']
-
-    select_mouse=False
-    name_mouse_selected=''
-
-    n_stim_ori_threshold=6
-    js_threshold=[0.4]*3+[0.3]*4
-
-    DBinterface(_id=0, name_mice=name_mice, hours=hours, conditions=conditions,
-                inputdir=inputdir,workdir=workdir,trialsmatdir=trialsmatdir,
-                stim_labels=stim_labels,stim_colors=stim_colors,
-                select_mouse=select_mouse,name_mouse_selected=name_mouse_selected,
-                n_stim_ori_threshold=n_stim_ori_threshold).insert(db.config)
 
 def get_config(db):
     return DBinterface(db.config.find_one())
 
-def ses_names(data,conditions,hours):
-    sess=[]
-    for data_col, cond in zip(data, conditions):
-        for d, hour in zip(data_col, hours):
-            if d == 1:
-                sess.append(cond + hour)
-    return sess
-
-def insert(doc, col, _id, overwrite=True):
-    try:
-        doc.insert(col)
-    except:
-        if overwrite:
-            col.delete_one({'_id': _id})
-            doc.insert(col)
-        else:
-            print('%s: document already exists'% _id)
-
+def get_name_tag(id_mouse,name_mouse,name_ses,fp_suite2pData):
+    fn_suite2pData = fp_suite2pData.split('\\')[-1].split('_')
+    cond_code = name_ses[0]
+    hour_code = name_ses[1:]
+    date_of_acq = fn_suite2pData[1]
+    nametag = DBinterface(id_mouse=id_mouse, name_mouse=name_mouse,
+                           cond_code=cond_code, hour_code=hour_code,date_of_acq=date_of_acq)
+    return nametag
 
 ################################## <DB OPERATIONS> #############################################
 
@@ -142,6 +113,22 @@ def clear_db(db):
     db.run.delete_many({})
     db.stim_event.delete_many({})
 
+def get_keys_collection(col):
+    return col.aggregate([
+        {"$project": {"arrayofkeyvalue": {"$objectToArray": "$$ROOT"}}},
+        {"$unwind": "$arrayofkeyvalue"},
+        {"$group": {"_id": None, "allkeys": {"$addToSet": "$arrayofkeyvalue.k"}}}
+    ]).next()["allkeys"]
+
+def add_indexs_collection(col):
+    start_time = time.time()
+    keys=get_keys_collection(col)
+    print(keys)
+    for k in keys:
+        col.create_index([(k, 1)])
+    end_time = time.time()
+    print('time elapsed:%.2f'%(end_time - start_time))
+
 ################################## <PLOTTING> #############################################
 def savePlot(ax,filename):
     fig = ax.get_figure()
@@ -153,8 +140,6 @@ def savePlot_fig(fig,filename):
     fig.savefig(filename,bbox_inches='tight',pad_inches=0.2)
     fig.clear()
     plt.close(fig)
-
-
 
 
 def mkdir(fp):

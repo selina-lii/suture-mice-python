@@ -448,3 +448,130 @@ def patch_1032():
         sf_id(db.mouse,i,'conds',conds.tolist())
         sf_id(db.mouse,i,'cond_poles',cond_poles[1:].tolist())
 
+
+meta='C:\\Users\\selinali\\lab\\sut\\2022-7-22-plots\\rois_cd'
+for mouse in db.mouse.find({},{'name':1}):
+    id_mouse = mouse['_id']
+    name=mouse['name']
+    try:
+        os.mkdir('%s\\%s'%(meta,name))
+    except:
+        pass
+    for id_cdneu in range(10):
+        tgt_folder='%s\\%s\\%d'%(meta,name,id_cdneu)
+        try:
+            os.mkdir(tgt_folder)
+        except:
+            pass
+        try:
+            id_neus=db.neu_cd.find_one({'id_mouse':id_mouse,'id_cdneu':id_cdneu},{'id_neus':1})['id_neus']
+            for id_ses,id_neu in enumerate(id_neus):
+                if id_neu!=0:
+                    id='%d%02d0%04d'%(id_mouse,id_ses,id_neu-1)
+                    src_folder='C:\\Users\\selinali\\lab\\sut\\2022-7-22-plots\\db_roi'
+                    try:
+                        shutil.copyfile('%s\\%s.jpg'%(src_folder,id),'%s\\%s.jpg'%(tgt_folder,id))
+                    except:
+                        pass
+        except:
+            pass
+tgt_folder='..'
+folders=['db_trace','db_trialsmat']
+for folder in folders:
+    for id_run in range(4):
+        id='600%d0001'%(id_run)
+        src_folder='C:\\Users\\selinali\\lab\\sut\\2022-7-22-plots\\%s'%folder
+        try:
+            shutil.copyfile('%s\\%s.jpg'%(src_folder,id),'%s.jpg'%(id))
+        except:
+            pass
+
+        '''def find_crossday(db,crossdaydir):
+            for mouse in db.mouse.find():
+                for
+                db.neuron.find({'id_mouse'},{'_id':1})
+        '''
+
+
+        def add_auc_test_query_pattern():
+            # comparing runtime between two search schema...
+            start_time = time.time()
+            # projection={'_id':0,'auc':1,'_id_ses':1,'id_neu':1}
+            projection = {'auc': 1}
+            for neu in db.neuron.find({}, projection):
+                _id = neu['_id']
+                for id_run, auc in enumerate(neu['auc']):
+                    findquery = {'_id': '%s%d%s' % (_id[:3], id_run, _id[4:])}
+                    # time elapsed:170.34 / 3min
+                    # findquery={'_id_run':'%s%d' %(neu['_id_ses'],id_run),'id_neu':neu['id_neu']}
+                    # time elapsed:479.65 / 8min
+                    db.neu_run2.update_one(findquery, {'$set': {'auc': auc}})
+            end_time = time.time()
+            print('time elapsed:%.2f' % (end_time - start_time))
+
+
+####run history
+
+# add all data by looping through the .mat files once
+#loop(save_refimg=False,add_sessions=False,add_runs=True,add_stims=False,add_neurons=False)
+
+# add grids for js and stuff
+#add_grids(config.stim_labels)
+#add_empty_neu_runs()
+
+#visual_driven_loop(db)
+#n_vd_neu = js_proc_loop(config.js_thresholds,config.js_scale_down_factor)
+
+#avgact_vd_neu_in_spont = average_response_spontaneous(db)
+
+#crossday(db,config.workdir+config.crossdaydir)
+
+#plot_trialsmat_loop(db,config)
+
+#visual_driven_loop(db,'js')
+
+#add_AUC()
+
+#add_basic_neu_runs_spont()
+
+#will take  forever to run ;(
+#get_sampen()
+#histograms_of_spont()
+#histograms_of_stim()
+
+#mark_nonphysiological_neurons()
+#crossday_meanact()
+#crossday_mean_acitivty_across_thresholds()
+#std_of_auc_across_days()
+
+crossday_mean_acitivty_subselect()
+
+end_time = time.time()
+print(datetime.now())
+print('time elapsed:%.2f'%(end_time - start_time))
+
+def test_js_threshold():
+    for i, neu in enumerate(
+            list(db.neu_run.find({'id_mouse': 0, 'js_max': {'$gt': 0.3}, 'is_visdriven': False}, {'_id': 1}).sort(
+                    'js_max', -1))):
+        shutil.copy2(config.workdir + '\\2022-7-22-plots\\db_trialsmat\\' + neu['_id'] + '.jpg',
+                     config.workdir + '\\2022-7-22-plots\\test_tm_subthres\\%d_%s.jpg' % (i, neu['_id']))
+
+    # 0.38606758684929166
+    for neu in db.neu_run.find({}, {'_id': 1}):
+        # sf_id(db.neu_run,neu['_id'],'_id_ses',neu['id_ses'])
+        sf_id(db.neu_run, neu['_id'], 'id_run', int(int(neu['_id'][3])))
+
+    for mouse in db.mouse.find({}, {'_id': 1, 'run_id_stim': 1}):
+        mm = []
+        sd = []
+        m1sd = []
+        for id_run in mouse['run_id_stim']:
+            ll = list(db.neu_run.find({'id_mouse': mouse['_id'], 'id_run': id_run}, {'js_max': 1}))
+            ll_js = [x['js_max'] for x in ll]
+            mm.append(np.mean(ll_js))
+            sd.append(np.std(ll_js))
+        m1sd = [x + y for x, y in zip(mm, sd)]
+        sf_id(db.mouse, mouse['_id'], 'js_mean', mm)
+        sf_id(db.mouse, mouse['_id'], 'js_std', sd)
+        sf_id(db.mouse, mouse['_id'], 'js_m+1std', m1sd)

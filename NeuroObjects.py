@@ -1,5 +1,4 @@
 
-
 class StimTrace():
     def stimBlocks(self,ax):
         ymin,ymax=ax.get_ylim()
@@ -126,10 +125,6 @@ class Neuron():
         filename=self.plotFilename(folder=save_folder,plotType=plotType,includeSession=includeSession)
         return filename if not os.path.exists(filename) else None
 
-
-
-
-
 class RoiMask():
     circs=None
     box=None
@@ -173,9 +168,6 @@ class Run:
     def name(self):
         return self.cond + str(self.day)
 
-
-
-
 def js_distsProc(neuron, maxlevel=None, exci=False):
     js_dists=neuron.js_dists[:,0] if exci else neuron.js_dists
     if maxlevel is None:
@@ -189,33 +181,3 @@ def js_distsProc(neuron, maxlevel=None, exci=False):
 
 def js_summary(neuron, stimTrace):
     return stimTrace.stimObjectsLabels('js_dist', js_distsProc(neuron=neuron, maxlevel='cond'))
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-class SpontBehavior:
-    def stats(self,neuron):
-        import scipy.stats
-        dff = neuron.dff
-        neuron.rmse     = np.sqrt(np.mean(dff ** 2)) #rmse
-        neuron.kurtosis = scipy.stats.kurtosis(dff) #kurtosis
-        neuron.stdev    = np.std(dff) #stdev
-        neuron.sampen   = scipy.stats.entropy(dff) #sampen
-
