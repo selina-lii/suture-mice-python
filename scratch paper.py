@@ -53,3 +53,4 @@ def plot_crossday():
                 plt.title('%s crossday %s for spontaneous run#%d' % (mouse['name'], stat, i_run))
                 plt.tight_layout()
                 savePlot(fig, '%s\\cd %s run %d mouse %d.jpg'%(stat,stat,id_run,id_mouse))
+

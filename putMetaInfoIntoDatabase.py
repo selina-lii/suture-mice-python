@@ -1,9 +1,7 @@
-import math
-import operator
 import os
 import numpy as np
 import glob
-import matplotlib.pyplot as plt
+
 from math import log2,inf,ceil
 import time
 from datetime import datetime
@@ -13,12 +11,13 @@ from scipy.spatial.distance import jensenshannon
 from EntropyHub import SampEn
 from scipy.stats import kurtosis,sem
 from LyxTools import *
+from plotting_functions import *
 from subprocess import call
 
 ############################# ADD DATA ##############################################
 def initiate_database():
     # create collections
-    collections=['mouse','session','run','neuron','stim_event','grid','backup']
+    collections=['mouse','session','run','neuron','stim_event','grid','neu_run']
     for col in collections:
         db[col]
     set_config()
@@ -72,16 +71,20 @@ def add_mice():
 def add_neurons():
     for mouse in db.mouse.find():
         id_mouse=mouse['_id']
+        n_runs=mouse['n_runs']
         for ses in db.session.find({'id_mouse':id_mouse}):
             _id_ses=ses['_id']
-            data = loadmat(ses['fp_stats'])['stats']
+            stats = loadmat(ses['fp_stats'])['stats']
+            data = loadmat(ses['fp_s2p_useful'])
+            dff = loadmat(ses['fp_dff'])['dff']
 
             id_neurons = np.where(data.iscell[:, 0].astype(bool))[0]
-            stats = [data.stat[i] for i in id_neurons]
+            stats = [stats[i] for i in id_neurons]
             snrs = data.snr
+            aucs = data.AUC
             cellIdxs = intarr(data.cellIdx, mat2py=True)
 
-            for id_neu, (stat, snr, id_neu_glob) in enumerate(zip(stats, snrs, cellIdxs)):
+            for id_neu, (stat, snr, id_neu_glob,auc_neu) in enumerate(zip(stats, snrs, cellIdxs, aucs)):
                 _id_neu = "%s0%04d" % (_id_ses, id_neu)
                 snr = snr.item()
                 try:
@@ -93,6 +96,13 @@ def add_neurons():
                 roi_med = [int(stat.med[1]), int(stat.med[0])]
                 DBinterface(_id=_id_neu, id_mouse=id_mouse, _id_ses=_id_ses, id_neu=id_neu, id_neu_glob=id_neu_glob,
                             roi_pix_x=roi_pix_x, roi_pix_y=roi_pix_y, roi_med=roi_med, snr=snr).insert(db.neuron)
+
+                for id_run,auc in enumerate(auc_neu):
+                    pass
+
+
+
+
 
 #TODO still messy
 def mainloop(save_refimg=False, add_sessions=False, add_runs=False, add_stims=False, update_mouse=False):
@@ -258,13 +268,6 @@ def add_grids(stim_labels):
                    row_poles=row_poles, row_end=row_end, row_labels=row_labels,
                    col_poles=col_poles, col_end=col_end, col_labels=col_labels).insert(db.grid)
 
-#TODO #should i have a function for this?
-def add_dependencies():
-    for mouse in db.mouse.find({},{'_id':1}):
-        ses = db.session.find_one({'id_mouse': mouse['_id']},{'run_id_stim': 1, 'run_id_spont': 1})
-        sf_id(db.mouse, mouse['_id'], 'run_id_stim', ses['run_id_stim'])
-        sf_id(db.mouse, mouse['_id'], 'run_id_spont', ses['run_id_spont'])
-
 #TODO
 def add_empty_neu_runs():
     for ses in db.session.find({},{'run_id_stim':1,'run_id_spont':1,'n_neu':1}):
@@ -278,11 +281,11 @@ def add_empty_neu_runs():
                 neu=DBinterface(_id=_id,id_mouse=id_mouse,_id_ses=_id_ses,_id_run=_id_run,id_run=id_run,id_neu=id_neu)
                 neu.insert(db.neu_run)
 
-def add_basic_neu_runs_spont():
+def add_basic_neu_runs():
     for ses in db.session.find({},{'run_id_spont':1,'fp_dff':1}):
         dff_ses=loadmat(ses['fp_dff'])['dFF']
         _id_ses=ses['_id']
-        for id_run in ses['run_id_spont']:
+        for id_run in range(ses['n_runs']):
             _id_run='%s%01d'%(_id_ses,id_run)
             run=db.run.find_one({'_id':_id_run},{'start_ses':1,'end_ses':1})
             dff_run=dff_ses[:,run['start_ses']:run['end_ses']]
@@ -548,46 +551,6 @@ def crossday_imshow():
         plt.tight_layout()
         savePlot_fig(fig, 'cd check_%d.jpg'%id_mouse)
 
-#TODO: this is still a script not a function
-def crossday_meanact():
-    stat='mean' #'rms'
-    for mouse in db.mouse.find({'_id':{'$gt':4}}):
-        id_mouse=mouse['_id']
-        print(mouse['name'])
-        n_sess=mouse['n_sess']
-        #number of days active to be a valid crossday neuron
-        thres_valid=0
-        try:
-            ids_cd=loadmat(mouse['fp_crossday'])
-            ids_cd=ids_cd.get(list(ids_cd.keys())[-1])
-            if thres_valid==0:
-                valid_ids=list(range(ids_cd.shape[0]))
-            else:
-                valid_ids=np.where(np.sum(ids_cd>0,axis=1)>thres_valid)[0].tolist()
-        except:
-            continue
-        for id_run in mouse['run_id_spont']:
-            print('run%d'%id_run)
-            stats = np.empty([n_sess, len(valid_ids)], dtype=float)
-            stats[:] = np.nan
-            for i,id_cd in enumerate(valid_ids):
-                sess=[]
-                stats_cd=[]
-                findquery = {'id_mouse': id_mouse, 'id_run': id_run, 'id_cd': id_cd, 'is_nonphys': {'$exists': 0}}
-                projection = {'_id': 0, stat: 1, 'id_ses': 1}
-                for neu in db.neu_run_spont.find(findquery,projection):
-                    sess.append(neu['id_ses'])
-                    stats_cd.append(neu[stat])
-                stats[sess,i]=stats_cd
-                if id_cd%1000==0:
-                    print(id_cd)
-
-            plt.clf()
-            fig = plt.figure(figsize=(20,15))
-            plt.plot(stats, alpha=0.4)
-            plt.title('%s run %d crossday %s' % (mouse['name'],id_run,stat))
-            plt.tight_layout()
-            savePlot(fig, 'c\\cd %s run %d mouse %d.jpg'%(stat,id_run,id_mouse))
 
 def add_neurons_crossday():
     for mouse in db.mouse.find():
@@ -615,8 +578,6 @@ def add_neurons_crossday():
                         is_on_n_sess=is_on_n_sess,
                         is_on_percent_sess=is_on_percent_sess).insert(db.neu_cd)
 
-#TODO: average response
-
 #TODO: might be a module
 def db_of_plots():
     fp_in = 'C:\\Users\\selinali\\lab\\RDE20141\\2022-7-7-plots\\trace\\'
@@ -643,12 +604,10 @@ def test_threshold_for_js():
                     shutil.copy2(config.workdir + '\\2022-7-22-plots\\db_trialsmat\\' + neu['_id'] + '.jpg',
                                  fp_out_type + '\\%d_%s_%.2f.jpg' % (i, neu['_id'], neu['js_max']))
 
-
 def mark_nonphysiological_neurons():
     '''    thres_u = [10, 20, inf, 2, 200, 3]
         thres_l = [-2, 0, -2, -inf, -inf, -inf]
     '''
-
     thres_u = [0.5, 100, inf, 10, 500, 10]
     thres_l = [0, -5, -10, -inf, -inf, -inf]
     stats = ['mean', 'max', 'min', 'std', 'kurt', 'rms']
@@ -661,9 +620,7 @@ def mark_nonphysiological_neurons():
 
 
 def add_auc():
-    #comparing runtime between two search schema...
     start_time = time.time()
-    #projection={'_id':0,'auc':1,'_id_ses':1,'id_neu':1}
     projection={'auc':1}
     for neu in db.neuron.find({},projection):
         _id=neu['_id']
@@ -677,13 +634,78 @@ def add_auc():
 def average_response():
     pass
 
+def cd_pull_files():
+    meta='C:\\Users\\selinali\\lab\\sut\\2022-7-22-plots\\trialsmat_cd'
+    for mouse in db.mouse.find({'n_neu_cd':{'$exists':1}}):
+        id_mouse = mouse['_id']
+        name=mouse['name']
+        n_neu_cd=mouse['n_neu_cd']
+        mkdir('%s\\%s'%(meta,name))
+        for id_run in mouse['run_id_stim']:
+            mkdir('%s\\%s\\%d'%(meta,name,id_run))
+            for id_cdneu in range(n_neu_cd):
+                tgt_folder='%s\\%s\\%d\\%d'%(meta,name,id_run,id_cdneu)
+                mkdir(tgt_folder)
+                id_neus=db.neu_cd.find_one({'id_mouse':id_mouse,'id_cdneu':id_cdneu},{'id_neus':1})['id_neus']
+                for id_ses,id_neu in enumerate(id_neus):
+                    if id_neu!=0:
+                        id='%d%02d%d%04d'%(id_mouse,id_ses,id_run,id_neu-1)
+                        src_folder='C:\\Users\\selinali\\lab\\sut\\2022-7-22-plots\\db_trialsmat'
+                        try:
+                            shutil.copyfile('%s\\%s.jpg'%(src_folder,id),'%s\\%s.jpg'%(tgt_folder,id))
+                        except:
+                            pass
+
+def find_cd_dff_lims():
+    for mouse in db.mouse.find():
+        print(mouse['name'])
+        id_mouse = mouse['_id']
+        n_neu_cd = mouse['n_neu_cd']
+        n_runs = mouse['n_runs']
+        for id_cd in range(n_neu_cd):
+            print(id_cd)
+            maxs=[]
+            mins=[]
+            for id_run in range(n_runs):
+                neus = list(db.neu_run2.find({'id_mouse': id_mouse, 'id_run': id_run, 'id_cd': id_cd},
+                                             {'max': 1, 'min': 1}))
+                maxs.append(max([x['max'] for x in neus]))
+                mins.append(min([x['min'] for x in neus]))
+            sf_id(db.neu_cd,'%d%04d'%(id_mouse,id_cd),'maxs',maxs)
+            sf_id(db.neu_cd,'%d%04d'%(id_mouse,id_cd),'mins',mins)
+
+def find_cd_dff_lims():
+    for mouse in db.mouse.find({'_id':5}):
+        print(mouse['name'])
+        id_mouse = mouse['_id']
+        n_neu_cd = mouse['n_neu_cd']
+        n_runs = mouse['n_runs']
+        for neu_cd in db.neu_cd.find({'id_mouse':id_mouse,'is_empty':{'$exists':0}},{'_id':0,'id_cdneu':1}):
+            id_cd=neu_cd['id_cdneu']
+            print(id_cd)
+            maxs=[]
+            mins=[]
+            for id_run in range(n_runs):
+                neus = list(db.neu_run2.find({'id_mouse': id_mouse, 'id_run': id_run, 'id_cd': id_cd},
+                                             {'max': 1, 'min': 1}))
+                maxs.append(max([x['max'] for x in neus]))
+                mins.append(min([x['min'] for x in neus]))
+            sf_id(db.neu_cd,'%d%04d'%(id_mouse,id_cd),'maxs',maxs)
+            sf_id(db.neu_cd,'%d%04d'%(id_mouse,id_cd),'mins',mins)
 
 
-
-
-
-
-
+def set_id_cd_for_all_neu_runs():
+    id_mouse=5
+    for neu_cd in db.neu_cd.find({'id_mouse':id_mouse}, {'_id': 0, 'id_cdneu': 1, 'id_neus': 1}):
+        id_cd = neu_cd['id_cdneu']
+        if id_cd%500==0:
+            print(id_cd)
+        for id_ses, id_neu in enumerate(neu_cd['id_neus']):
+            if id_neu != 0:
+                id_neu -= 1
+                db.neu_run2.update_many(
+                    {'id_mouse': id_mouse, 'id_ses': id_ses, 'id_neu': id_neu},
+                    {'$set': {'id_cd': id_cd}})
 
 start_time = time.time()
 print(datetime.now())
@@ -691,6 +713,10 @@ print(datetime.now())
 db = pymongo.MongoClient("mongodb://localhost:27017/").sut_mice2
 config = get_config(db)
 
+#cd_visdriven_on_last_baseline(db)
+#cd_pull_files()
+set_id_cd_for_all_neu_runs()
+find_cd_dff_lims()
 
 end_time = time.time()
 print(datetime.now())

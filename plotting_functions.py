@@ -1,3 +1,9 @@
+import matplotlib.pyplot as plt
+from math import inf
+from LyxTools import loadmat,savePlot
+import numpy as np
+from scipy.stats import sem
+
 def plot_mouse_stat(data,title,xticklabels,filename,err=None):
     plt.clf()
     plt.figure(figsize=(len(data), 7.5))
@@ -86,8 +92,6 @@ def plotTrialsMat(dff, grid, folder, _id_neu, cb_asp, cb_pad):
 
     plt.tight_layout()
     savePlot(plt.gca(), folder +'\\' + _id_neu + '.jpg')
-
-
 
 def histograms_of_stim(fp=None):
     if fp is None:
@@ -195,7 +199,6 @@ def std_of_auc_across_days():
                 plot_mouse_stat(stats_mean[s],tt,name_sess,fn,err=stats_err[s])
     return stat_all
 
-
 def crossday_mean_acitivty_across_thresholds():
     thresholds=[0.5,0.6,0.7,0.8,0.9]
     stats=['mean','std','rms']
@@ -246,7 +249,6 @@ def crossday_mean_acitivty_across_thresholds():
                 plt.tight_layout()
                 savePlot(fig, '%s\\cd %s run %d mouse %d.jpg'%(stat,stat,id_run,id_mouse))
 
-
 def crossday_mean_acitivty_subselect():
     stats=['mean','std','rms']
     projection = {'_id': 0, 'id_ses': 1}
@@ -289,4 +291,158 @@ def crossday_mean_acitivty_subselect():
                 plt.title('%s crossday %s for spontaneous run#%d \n(subselect neurons that are active for at least 1 day on all all conditons)' % (mouse['name'], stat, i_run))
                 plt.tight_layout()
                 savePlot(fig, '%s\\cd %s run %d mouse %d subselect.jpg'%(stat,stat,id_run,id_mouse))
+
+#TODO: this is still a script not a function
+def crossday_meanact():
+    stat='mean' #'rms'
+    for mouse in db.mouse.find({'_id':{'$gt':4}}):
+        id_mouse=mouse['_id']
+        print(mouse['name'])
+        n_sess=mouse['n_sess']
+        #number of days active to be a valid crossday neuron
+        thres_valid=0
+        try:
+            ids_cd=loadmat(mouse['fp_crossday'])
+            ids_cd=ids_cd.get(list(ids_cd.keys())[-1])
+            if thres_valid==0:
+                valid_ids=list(range(ids_cd.shape[0]))
+            else:
+                valid_ids=np.where(np.sum(ids_cd>0,axis=1)>thres_valid)[0].tolist()
+        except:
+            continue
+        for id_run in mouse['run_id_spont']:
+            print('run%d'%id_run)
+            stats = np.empty([n_sess, len(valid_ids)], dtype=float)
+            stats[:] = np.nan
+            for i,id_cd in enumerate(valid_ids):
+                sess=[]
+                stats_cd=[]
+                findquery = {'id_mouse': id_mouse, 'id_run': id_run, 'id_cd': id_cd, 'is_nonphys': {'$exists': 0}}
+                projection = {'_id': 0, stat: 1, 'id_ses': 1}
+                for neu in db.neu_run_spont.find(findquery,projection):
+                    sess.append(neu['id_ses'])
+                    stats_cd.append(neu[stat])
+                stats[sess,i]=stats_cd
+                if id_cd%1000==0:
+                    print(id_cd)
+
+            plt.clf()
+            fig = plt.figure(figsize=(20,15))
+            plt.plot(stats, alpha=0.4)
+            plt.title('%s run %d crossday %s' % (mouse['name'],id_run,stat))
+            plt.tight_layout()
+            savePlot(fig, 'c\\cd %s run %d mouse %d.jpg'%(stat,id_run,id_mouse))
+
+def cd_visdriven_on_last_baseline(db):
+    stats=['mean','std','rms','auc']
+    projection = {'_id': 0, 'id_ses': 1}
+    for stat in stats:
+        projection[stat]=1
+
+    for stat in stats:
+        for mouse in db.mouse.find():
+            print(mouse['name'])
+            id_mouse=mouse['_id']
+            n_sess = mouse['n_sess']
+            try:
+                ids_cd=loadmat(mouse['fp_crossday'])
+                ids_cd = ids_cd.get(list(ids_cd.keys())[-1])
+            except:
+                continue
+
+            id_ses=mouse['cond_poles'][0]-1
+            _id_ses='%d%02d'%(id_mouse, id_ses)
+            mouse['cond_poles'].insert(0, 0) # for plotting
+
+            for i_run,id_run in enumerate(mouse['run_id_spont']):
+                print('run%d' % id_run)
+                ids_cd_select=[]
+                vd_neus = [x['_id'] for x in list(db.neu_run2.find({'is_visdriven': True, 'id_mouse':id_mouse, 'id_ses': {'$lt':id_ses}, 'id_run': id_run + 1},
+                                    {'_id': 1}))]
+                #vd_neus = [x['id_neu'] for x in list(db.neu_run2.find({'is_visdriven': True, '_id_run': '%s%d' % (_id_ses, id_run + 1)},
+                #                    {'_id': 0, 'id_neu': 1}))]
+                stats = np.empty([n_sess, len(vd_neus)], dtype=float)
+                stats[:] = np.nan
+                for i,_id_neu in enumerate(vd_neus):
+                    id_cd=db.neuron.find_one({'_id': '%s0%s' % (_id_neu[:3],_id_neu[4:])},{'_id':0,'id_cd':1})
+                    if not 'id_cd' in id_cd.keys():
+                        print('neu# %s not found in crossday' % _id_neu)
+                        continue
+                    if id_cd not in ids_cd_select:
+                        id_cd=id_cd['id_cd']
+                        ids_cd_select.append(id_cd)
+                        sess=[]
+                        stats_cd=[]
+                        findquery = {'id_mouse': id_mouse, 'id_run': id_run, 'id_cd': id_cd, 'is_nonphys': {'$exists': 0}}
+                        projection = {'_id': 0, stat: 1, 'id_ses': 1}
+                        for neu in db.neu_run2.find(findquery,projection):
+                            sess.append(neu['id_ses'])
+                            stats_cd.append(neu[stat])
+                        stats[sess,i]=stats_cd
+                        if id_mouse == 0 and id_run==2:
+                            stats[4,:]=np.nan
+
+                mean=np.nanmean(stats*2,axis=1)
+                err=sem(stats*2,axis=1,nan_policy='omit')
+                print(np.count_nonzero(~np.isnan(stats[0])))
+
+                plt.clf()
+                fig = plt.figure(figsize=(20*(n_sess/16),15))
+                l = plt.plot(mean,color='b',linewidth=5)[0]
+                plt.fill_between(l.get_xdata(), mean - err, mean + err, color=l.get_color(),
+                                 alpha=0.4, edgecolor='none')
+                plt.plot(stats, alpha=0.5)
+                plt.title('%s run %d crossday %s (subselect vis driven neurons on the last baseline day)' % (mouse['name'],id_run,stat))
+                for x,label in zip(mouse['cond_poles'],mouse['conds']):
+                    plt.axvline(x=x, label=label,color='r',linestyle='--')
+                    plt.text(x-0.3,plt.gca().get_ylim()[1]*0.95,label,fontsize=40)
+                ax = plt.gca()
+                ax.set_xticks(list(range(n_sess)))
+                ax.set_xticklabels(mouse['name_sess'], fontsize=15)
+                plt.tight_layout()
+                savePlot(fig, 'cd %s run %d mouse %d.jpg'%(stat,id_run,id_mouse))
+
+
+
+
+
+
+def find_cd_dff_lims():
+    for mouse in db.mouse.find():
+        print(mouse['name'])
+        id_mouse = mouse['_id']
+        n_neu_cd = mouse['n_neu_cd']
+        for ses in db.find({'id_mouse':id_mouse},{'fp_dff':1}):
+            _id_ses=ses['_id']
+            dff_ses=loadmat(ses['fp_dff'])['dff']
+            for id_run in range(ses['n_runs']):
+                _id_run = '%s%01d' % (_id_ses, id_run)
+                run = db.run.find_one({'_id': _id_run}, {'start_ses': 1, 'end_ses': 1})
+                dff_run = dff_ses[:, run['start_ses']:run['end_ses']]
+                for id_cdneu in range(n_neu_cd):
+                    id_neus = db.neu_cd.find_one({'id_mouse': id_mouse, 'id_cdneu': id_cdneu}, {'id_neus': 1})['id_neus']
+                    for id_ses, id_neu in enumerate(id_neus):
+                        if id_neu != 0:
+                            id_neu -=1
+                            id = '%d%02d%d%04d' % (id_mouse, id_ses, id_run, id_neu)
+                            dff_run[id_neu,:]
+
+session.freq
+
+def plotTrace(ymin,ymax,is_stim,freq,dff,title,parentFolder):
+    eps=0.01
+    plt.clf()
+    fig = plt.figure(figsize=(15, 4))
+    def frame2sec(tk):
+        return '%d(%.2fs)'%(tk, (tk)/freq)
+    ax=plt.gca()
+    ax.set_xticks(tks)
+    ax.set_xticklabels([frame2sec(tk) for tk in tks])
+    plt.plot(dff)
+    if is_stim:
+        ax = session.stimTrace.stimBlocks(ax=ax)
+    plt.title(title, fontsize=16)
+    plt.tight_layout()
+    savePlot(plt.gca(), filename, plotType)
+
 

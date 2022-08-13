@@ -19,7 +19,6 @@ class StimTrace():
 
 
 class Neuron():
-
     # statistics
     visdriven = None
     js_dists = None

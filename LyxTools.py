@@ -5,13 +5,16 @@ import pymongo
 import os
 import mat73
 ################################## <MATLAB - PYTHON INTERFACES> #############################################
+import scipy.io
+
+
 def loadmat(filename):
     try:
         data = mat73.loadmat(filename, use_attrdict=True)
         return data
     except:
         # not using this as for now.. instead converted non-7.3 files into v7.3 for sut3/4
-        Exception('Reading of non-7.3 file is not supported now. Please convert to v7.3 in MATLAB and try again.')
+        return scipy.io.loadmat(filename)
 
 def intarr(arr, mat2py=False):
     if mat2py:
@@ -145,3 +148,4 @@ def savePlot_fig(fig,filename):
 def mkdir(fp):
     if not os.path.isdir(fp):
         os.mkdir(fp)
+
