@@ -575,3 +575,37 @@ def test_js_threshold():
         sf_id(db.mouse, mouse['_id'], 'js_mean', mm)
         sf_id(db.mouse, mouse['_id'], 'js_std', sd)
         sf_id(db.mouse, mouse['_id'], 'js_m+1std', m1sd)
+
+
+def plot_trace(dff,ylims,freq,filename,folder):
+    fig = plt.figure(figsize=(15, 4))
+    def frame2sec(tk):
+        return '%d\n(%.2fs)'%(tk, (tk)/freq)
+    ax=plt.gca()
+    tks=[x*1000 for x in range(len(dff)%1000)]
+    ax.set_xticks(tks)
+    ax.set_xticklabels([frame2sec(tk) for tk in tks],fontsize=5)
+    plt.ylim(ylims[0],ylims[1])
+    plt.plot(dff,linewidth=0.9)
+    ax.margins(0.01)
+    fig.savefig(filename,bbox_inches='tight')
+    plt.close(fig)
+
+
+def plot_trace_loop(folder,db,_id_ses):
+    for mouse in db.mouse.find({'keep':True}):
+        print(mouse['name'])
+        id_mouse = mouse['_id']
+        n_runs=mouse['n_runs']
+        for ses in db.session.find({'id_mouse':id_mouse},{'fp_dff':1,'framerate':1,'n_neu':1}):
+            _id_ses=ses['_id']
+            print(_id_ses)
+            dff_ses=loadmat(ses['fp_dff'])['dFF']
+            for id_run in range(n_runs):
+                _id_run = '%s%01d' % (_id_ses, id_run)
+                run = db.run.find_one({'_id': _id_run}, {'start_ses': 1, 'end_ses': 1})
+                dff_run = dff_ses[:, run['start_ses']:run['end_ses']]
+                for id_neu,dff in enumerate(dff_run):
+                        _id = '%s%d%04d' % (_id_ses, id_run, id_neu)
+                        ylims = db.neu_run2.find_one({'_id': _id},{'dff_lims_cd':1})['dff_lims_cd']
+                        plot_trace(dff,ylims,_id,folder)

@@ -127,10 +127,8 @@ def mainloop(save_refimg=False, add_sessions=False, add_runs=False, add_stims=Fa
                 run_id_stim = np.nonzero(n_visstim)
 
                 if update_mouse and id_ses==0:
-                    sf_id(db.mouse,id_mouse,'run_starts',run_starts)
-                    sf_id(db.mouse,id_mouse,'run_ends',run_ends)
-                    sf_id(db.mouse,id_mouse,'run_id_spont',run_id_spont)
-                    sf_id(db.mouse,id_mouse,'run_id_stim',run_id_stim)
+                    d=dict(run_starts=run_starts,run_ends=run_ends,run_id_spont=run_id_spont,run_id_stim=run_id_stim)
+                    sf_id(db.mouse,id_mouse,d)
 
                 if save_refimg:
                     fp_refimg = "%s\\refimg\\%s_%s_ref.png" % (config.workdir, name_mouse, name_ses)
@@ -335,11 +333,6 @@ def get_sampen():
                         pass
 
 ############################# DEFINE VISUALLY DRIVEN NEURONS ##############################################
-def tm(dff,grid):
-    trialsmat = np.empty([grid['row_end'], grid['col_end']], )
-    for j, (on, off) in enumerate(zip(grid['ons_reor'], grid['offs_reor'])):
-        trialsmat[j] = dff[on:off]
-    return trialsmat
 
 # kl or js
 def dist_distrib(dff, grid, run, baselineIdxs, nonbaseIdxs, dist_type='kl_raw'):
@@ -657,42 +650,21 @@ def cd_pull_files():
                             pass
 
 def find_cd_dff_lims():
-    for mouse in db.mouse.find():
+    for mouse in db.mouse.find({'keep':True}):
         print(mouse['name'])
         id_mouse = mouse['_id']
-        n_neu_cd = mouse['n_neu_cd']
-        n_runs = mouse['n_runs']
-        for id_cd in range(n_neu_cd):
-            print(id_cd)
-            maxs=[]
-            mins=[]
-            for id_run in range(n_runs):
-                neus = list(db.neu_run2.find({'id_mouse': id_mouse, 'id_run': id_run, 'id_cd': id_cd},
-                                             {'max': 1, 'min': 1}))
-                maxs.append(max([x['max'] for x in neus]))
-                mins.append(min([x['min'] for x in neus]))
-            sf_id(db.neu_cd,'%d%04d'%(id_mouse,id_cd),'maxs',maxs)
-            sf_id(db.neu_cd,'%d%04d'%(id_mouse,id_cd),'mins',mins)
-
-def find_cd_dff_lims():
-    for mouse in db.mouse.find({'_id':5}):
-        print(mouse['name'])
-        id_mouse = mouse['_id']
-        n_neu_cd = mouse['n_neu_cd']
         n_runs = mouse['n_runs']
         for neu_cd in db.neu_cd.find({'id_mouse':id_mouse,'is_empty':{'$exists':0}},{'_id':0,'id_cdneu':1}):
             id_cd=neu_cd['id_cdneu']
             print(id_cd)
-            maxs=[]
-            mins=[]
             for id_run in range(n_runs):
-                neus = list(db.neu_run2.find({'id_mouse': id_mouse, 'id_run': id_run, 'id_cd': id_cd},
+                neus = list(db.neu_run2.find({'id_mouse': id_mouse, 'id_run': id_run, 'id_cd': id_cd,'is_nonphys':{'$exists':0}},
                                              {'max': 1, 'min': 1}))
-                maxs.append(max([x['max'] for x in neus]))
-                mins.append(min([x['min'] for x in neus]))
-            sf_id(db.neu_cd,'%d%04d'%(id_mouse,id_cd),'maxs',maxs)
-            sf_id(db.neu_cd,'%d%04d'%(id_mouse,id_cd),'mins',mins)
-
+                if len(neus)!=0:
+                    ymax=max([x['max'] for x in neus])
+                    ymin=min([x['min'] for x in neus])
+                    _ids=[x['_id'] for x in neus]
+                    sf_ids(db.neu_run2,_ids,dict(dff_lims_cd=[ymin,ymax]))
 
 def set_id_cd_for_all_neu_runs():
     id_mouse=5
@@ -715,11 +687,9 @@ config = get_config(db)
 
 #cd_visdriven_on_last_baseline(db)
 #cd_pull_files()
-set_id_cd_for_all_neu_runs()
-find_cd_dff_lims()
+# find_cd_dff_lims()
+plot_trace_loop(config.workdir+config.db_trace,db,2)
 
 end_time = time.time()
 print(datetime.now())
 print('time elapsed:%.2f'%(end_time - start_time))
-assert 0==1
-############################### scripts

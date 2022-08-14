@@ -1,11 +1,6 @@
 
 class StimTrace():
-    def stimBlocks(self,ax):
-        ymin,ymax=ax.get_ylim()
-        for event in self.stimEvents:
-            ax.plot([event.on,event.off], [ymax,ymax], c=event.stim.color, marker='|',linewidth=20)
-            ax.vlines([event.on,event.off], ymin, ymax,colors=['k','k'],linestyles='dashed',alpha=0.3)
-        return ax
+
 
     def trace(self, highlight_oris=None,scale=1):
         trace = np.zeros(self.end)

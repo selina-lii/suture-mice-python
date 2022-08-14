@@ -1,6 +1,8 @@
+import os.path
+
 import matplotlib.pyplot as plt
 from math import inf
-from LyxTools import loadmat,savePlot
+from LyxTools import loadmat,savePlot,mkdir,savePlot_fig
 import numpy as np
 from scipy.stats import sem
 
@@ -68,13 +70,19 @@ def plot_trialsmat_loop(db,config,id_mouse_sel=None):
                 _id_neu='%s%04d'%(_id_run, id_neu)
                 plotTrialsMat(dff, grid, fpout, _id_neu, asp, pad)
 
+def tm(dff,grid):
+    trialsmat = np.empty([grid['row_end'], grid['col_end']], )
+    for j, (on, off) in enumerate(zip(grid['ons_reor'], grid['offs_reor'])):
+        trialsmat[j] = dff[on:off]
+    return trialsmat
+
 def plotTrialsMat(dff, grid, folder, _id_neu, cb_asp, cb_pad):
     trialsmat = tm(dff, grid)
     h = trialsmat.shape[0]
     w = trialsmat.shape[1]
 
     plt.clf()
-    fig = plt.figure(figsize=(w/16, h/8))
+    plt.figure(figsize=(w/16, h/8))
 
     plt.imshow(trialsmat, cmap=plt.get_cmap('turbo'))
     plt.colorbar(aspect=cb_asp,shrink=0.5,orientation='horizontal',pad=cb_pad)
@@ -403,46 +411,64 @@ def cd_visdriven_on_last_baseline(db):
                 savePlot(fig, 'cd %s run %d mouse %d.jpg'%(stat,id_run,id_mouse))
 
 
-
-
-
-
-def find_cd_dff_lims():
-    for mouse in db.mouse.find():
+def plot_trace_loop(folder,db,id_mouse):
+    plt.figure(figsize=(15, 3.6))
+    for mouse in db.mouse.find({'_id':id_mouse}):
         print(mouse['name'])
-        id_mouse = mouse['_id']
-        n_neu_cd = mouse['n_neu_cd']
-        for ses in db.find({'id_mouse':id_mouse},{'fp_dff':1}):
+        for ses in db.session.find({'id_mouse':id_mouse,'id_ses':{'$gt':11}},{'fp_dff':1,'framerate':1,'n_neu':1}):
             _id_ses=ses['_id']
-            dff_ses=loadmat(ses['fp_dff'])['dff']
-            for id_run in range(ses['n_runs']):
+            print(_id_ses)
+            dff_ses=loadmat(ses['fp_dff'])['dFF']
+            for id_run in mouse['run_id_spont']:
                 _id_run = '%s%01d' % (_id_ses, id_run)
                 run = db.run.find_one({'_id': _id_run}, {'start_ses': 1, 'end_ses': 1})
                 dff_run = dff_ses[:, run['start_ses']:run['end_ses']]
-                for id_cdneu in range(n_neu_cd):
-                    id_neus = db.neu_cd.find_one({'id_mouse': id_mouse, 'id_cdneu': id_cdneu}, {'id_neus': 1})['id_neus']
-                    for id_ses, id_neu in enumerate(id_neus):
-                        if id_neu != 0:
-                            id_neu -=1
-                            id = '%d%02d%d%04d' % (id_mouse, id_ses, id_run, id_neu)
-                            dff_run[id_neu,:]
+                for id_neu,dff in enumerate(dff_run):
+                        _id = '%s%d%04d' % (_id_ses, id_run, id_neu)
+                        filename = folder + '\\' + _id+'.png'
+                        if not os.path.isfile(filename):
+                            neu = db.neu_run2.find_one({'_id': _id},{'dff_lims_cd':1})
+                            try:
+                                plt.clf()
+                                plt.ylim(neu['dff_lims_cd'][0], neu['dff_lims_cd'][1])
+                                plt.plot(dff, linewidth=0.9)
+                                plt.margins(0.01)
+                                plt.savefig(filename, bbox_inches='tight')
+                            except:
+                                print(_id)
 
-session.freq
 
-def plotTrace(ymin,ymax,is_stim,freq,dff,title,parentFolder):
-    eps=0.01
-    plt.clf()
-    fig = plt.figure(figsize=(15, 4))
-    def frame2sec(tk):
-        return '%d(%.2fs)'%(tk, (tk)/freq)
-    ax=plt.gca()
-    ax.set_xticks(tks)
-    ax.set_xticklabels([frame2sec(tk) for tk in tks])
-    plt.plot(dff)
-    if is_stim:
-        ax = session.stimTrace.stimBlocks(ax=ax)
-    plt.title(title, fontsize=16)
-    plt.tight_layout()
-    savePlot(plt.gca(), filename, plotType)
+
+def stimBlocks(ax):
+    ymin,ymax=ax.get_ylim()
+    for event in stimEvents:
+        ax.plot([event.on,event.off], [ymax,ymax], c=event.stim.color, marker='|',linewidth=20)
+        ax.vlines([event.on,event.off], ymin, ymax,colors=['k','k'],linestyles='dashed',alpha=0.3)
+    return ax
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 

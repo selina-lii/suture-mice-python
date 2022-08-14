@@ -25,9 +25,8 @@ def intarr(arr, mat2py=False):
 class DBinterface:
     properties = None
 
-    def __init__(self, _id, iterable=(), **kwargs):
+    def __init__(self, iterable=(), **kwargs):
         self.__dict__.update(iterable, **kwargs)
-        self._id=_id
         try:
             self.properties = kwargs
         except:
@@ -86,12 +85,15 @@ def df(col, fieldname):
     col.update_many({}, {"$unset": {fieldname: 1}})
 
 #set field
-def sf(col, doc, fieldname, value):
-    col.update_one({'_id':doc['_id']}, {"$set": {fieldname: value}})
+def sf(col, doc, dict):
+    col.update_one({'_id':doc['_id']}, {"$set": dict})
 
 #set field by id
-def sf_id(col, _id, fn, val):
-    col.update_one({'_id':_id}, {"$set": {fn: val}})
+def sf_id(col, _id, dict):
+    col.update_one({'_id':_id}, {"$set": dict})
+
+def sf_ids(col, dict_ids, dict):
+    col.update_many({'_id':{'$in':dict_ids}}, {"$set": dict})
 
 def sf_config(db,fieldname,value):
     db.config.update_one({},{'$set':{fieldname:value}})
