@@ -134,6 +134,9 @@ def add_indexs_collection(col):
     end_time = time.time()
     print('time elapsed:%.2f'%(end_time - start_time))
 
+def id(_id):
+    return {'_id':_id}
+
 ################################## <PLOTTING> #############################################
 def savePlot(ax,filename):
     fig = ax.get_figure()
