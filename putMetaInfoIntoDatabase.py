@@ -8,7 +8,7 @@ from datetime import datetime
 import shutil
 from scipy.special import rel_entr
 from scipy.spatial.distance import jensenshannon
-from EntropyHub import SampEn
+#from EntropyHub import SampEn
 from scipy.stats import kurtosis,sem
 from LyxTools import *
 from plotting_functions import *
@@ -688,7 +688,8 @@ config = get_config(db)
 #cd_visdriven_on_last_baseline(db)
 #cd_pull_files()
 # find_cd_dff_lims()
-plot_trace_loop(config.workdir+config.db_trace,db,2)
+#plot_trace_loop(config.workdir+config.db_trace,db,2)
+cd_visdriven_on_last_baseline_wrapper(db)
 
 end_time = time.time()
 print(datetime.now())
