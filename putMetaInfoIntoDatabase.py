@@ -27,12 +27,13 @@ def set_config():
     mice_names = ['T01', 'T02', 'T03', 'Sut1', 'Sut2', 'Sut3', 'Sut4']
     hours = ['0025', '005', '01', '04', '06', '08', '12', '24', '48', '72', '96', '120', '144', '168']
     conditions = ['B', 'S', 'U', 'R']
+    # TODO update function, inc
 
     dir_input = 'C:\\Users\\selinali\\lab\\Mice'
     dir_work = 'C:\\Users\\selinali\\lab\\sut'
     dir_tm = dir_work+ '\\2022-7-22-plots\\trialsmat'
 
-    stim_labels = [0, 45, 90, 135, 180, 225, 270, 315]
+    stim_labels = [0, 45, 90, 135, 180, 225, 270, 315] #TODO: read in from orientations used
     stim_colors = ['#AC041B', '#F8693D', '#EDB120', '#21C40F', '#67DCD5', '#2A46FA', '#A81CBF', '#FF1493']
     n_stim_ori_threshold = 6
 
@@ -48,6 +49,7 @@ def set_config():
                          n_stim_ori_threshold=n_stim_ori_threshold).insert(db.config)
     return config
 
+###############################################################################################
 def add_mice():
     for _id, name in enumerate(config.mice_names):
         print(name)
@@ -92,17 +94,13 @@ def add_neurons():
                     roi_pix_y = intarr(stat.yext)
                 except:
                     roi_pix_x = intarr(stat.xcirc)
-                    roi_pix_y = intarr(stat.ycirc)
+                    roi_pix_y = intarr(stat.ycirc)#TODO
                 roi_med = [int(stat.med[1]), int(stat.med[0])]
                 DBinterface(_id=_id_neu, id_mouse=id_mouse, _id_ses=_id_ses, id_neu=id_neu, id_neu_glob=id_neu_glob,
                             roi_pix_x=roi_pix_x, roi_pix_y=roi_pix_y, roi_med=roi_med, snr=snr).insert(db.neuron)
 
                 for id_run,auc in enumerate(auc_neu):
                     pass
-
-
-
-
 
 #TODO still messy
 def mainloop(save_refimg=False, add_sessions=False, add_runs=False, add_stims=False, update_mouse=False):
@@ -502,10 +500,8 @@ def crossday(db,crossdaydir):
         run_id_spont=mouse['run_id_spont']
         run_id_stim = mouse['run_id_stim']
         fp_crossday=crossdaydir+'\\'+mouse['name']+'.mat'
-        try:
-            ids_cd=loadmat(fp_crossday)
-            ids_cd=ids_cd.get(list(ids_cd.keys())[-1])
-        except:
+        ids_cd=load_ids_cd(mouse)
+        if ids_cd is None:
             continue
         for id_cdneu,neu_cd in enumerate(ids_cd):
             neu_cd=intarr(neu_cd,mat2py=True)
@@ -522,10 +518,8 @@ def crossday_imshow():
     for mouse in db.mouse.find():
         id_mouse=mouse['_id']
         fp_crossday=config.workdir+config.crossdaydir+'\\'+mouse['name']+'.mat'
-        try:
-            ids_cd=loadmat(fp_crossday)
-            ids_cd=ids_cd.get(list(ids_cd.keys())[-1])
-        except:
+        ids_cd=load_ids_cd(mouse)
+        if ids_cd is None:
             continue
         plt.clf()
         n=ids_cd.shape[0]//100+1
@@ -544,13 +538,10 @@ def crossday_imshow():
         plt.tight_layout()
         savePlot_fig(fig, 'cd check_%d.jpg'%id_mouse)
 
-
 def add_neurons_crossday():
     for mouse in db.mouse.find():
-        try:
-            ids_cd=loadmat(mouse['fp_crossday'])
-            ids_cd=ids_cd.get(list(ids_cd.keys())[-1])
-        except:
+        ids_cd=load_ids_cd(mouse)
+        if ids_cd is None:
             continue
         print(mouse['name'])
         id_mouse=mouse['_id']
@@ -611,7 +602,6 @@ def mark_nonphysiological_neurons():
                 sf_id(db.neu_run_spont, neu['_id'], 'is_nonphys', True)
 
 
-
 def add_auc():
     start_time = time.time()
     projection={'auc':1}
@@ -623,9 +613,6 @@ def add_auc():
     end_time = time.time()
     print('time elapsed:%.2f'%(end_time - start_time))
 
-
-def average_response():
-    pass
 
 def cd_pull_files():
     meta='C:\\Users\\selinali\\lab\\sut\\2022-7-22-plots\\trialsmat_cd'

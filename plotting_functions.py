@@ -6,22 +6,25 @@ import numpy as np
 from scipy.stats import sem
 
 
-def plot_mouse_stat(data, title, xticklabels, filename, err=None):
-    plt.clf()
-    plt.figure(figsize=(len(data), 7.5))
-    l = plt.plot(data)[0]
-    if err is not None:
-        plt.fill_between(l.get_xdata(), data + err, data - err, color=l.get_color(), alpha=0.2)
-    plt.title(title)
-    ax = plt.gca()
-    ax.set_xticks(list(range(len(data))))
-    ax.set_xticklabels(xticklabels, fontsize=8)
-    plt.savefig(filename, bbox_inches='tight', pad_inches=0.2)
-    plt.close()
-
-
-def average_response_spontaneous(db):
+def average_response_spontaneous_wrapper(db):
     avgact_vd_neu_in_spont = np.zeros([2, 7, 30])
+    stats=mouse_loop(db,average_response_spontaneous,)
+    for mouse in db.mouse.find():
+        n = mouse['n_sess']
+        m_n = mouse['name']
+        names = mouse['name_sess']
+        for i, id_run in enumerate(mouse['run_id_stim']):
+            tt = "average response of driven neurons in spontaneous run - %s run%d" % (m_n, id_run)
+            fn = 'avgact_%s_run%d.jpg' % (m_n, id_run)
+            d = avgact_vd_neu_in_spont[i, mouse['_id'], :n]
+            plot_mouse_stat(d, n, tt, names, fn)
+
+def average_response_spontaneous(db,ses):
+
+    for run in db.run.find():
+        means=get_neu_run_stats(db,run,'mean')
+        return np.mean(means)
+
 
     for mouse in db.mouse.find():
         id_mouse = mouse['_id']
@@ -40,17 +43,7 @@ def average_response_spontaneous(db):
                     dff_run = dff[ids, run['start_ses']:run['end_ses']]
                     avgact_vd_neu_in_spont[i, id_mouse, j] = np.mean(dff_run)
 
-    for mouse in db.mouse.find():
-        n = mouse['n_sess']
-        m_n = mouse['name']
-        names = mouse['name_sess']
-        for i, id_run in enumerate(mouse['run_id_stim']):
-            tt = "average response of driven neurons in spontaneous run - %s run%d" % (m_n, id_run)
-            fn = 'avgact_%s_run%d.jpg' % (m_n, id_run)
-            d = avgact_vd_neu_in_spont[i, mouse['_id'], :n]
-            plot_mouse_stat(d, n, tt, names, fn)
     return avgact_vd_neu_in_spont
-
 
 def plot_trialsmat_loop(db, config, id_mouse_sel=None):
     if id_mouse_sel is not None:
@@ -72,7 +65,6 @@ def plot_trialsmat_loop(db, config, id_mouse_sel=None):
             for id_neu, dff in enumerate(dff_r):
                 _id_neu = '%s%04d' % (_id_run, id_neu)
                 plotTrialsMat(dff, grid, fpout, _id_neu, asp, pad)
-
 
 def tm(dff, grid):
     trialsmat = np.empty([grid['row_end'], grid['col_end']], )
@@ -215,23 +207,31 @@ def cd_std_auc(mouse):
             plot_mouse_stat(stats_mean[s], tt, mouse.name_sess, fn, err=stats_err[s])
 
 
+
+def cd_compare_conditions_mean(db):
+
+
+def crossday_mean_acitivty_across_thresholds_wrapper(db):
+    stats = ['mean', 'std', 'rms']
+    for stat in stats:
+        mouse_loop(db, crossday_mean_acitivty_across_thresholds, cd=True, stat=stat,outdir=db.config.find_one()['_testpath'])
+
 def crossday_mean_acitivty_across_thresholds():
     thresholds = [0.5, 0.6, 0.7, 0.8, 0.9]
-    stats = ['mean', 'std', 'rms']
-    projection = {'_id': 0, 'id_ses': 1}
-    for stat in stats:
-        projection[stat] = 1
 
-    for mouse in db.mouse.find():
-        print(mouse['name'])
-        id_mouse = mouse['_id']
-        n_sess = mouse['n_sess']
-        try:
-            ids_cd = loadmat(mouse['fp_crossday'])
-            ids_cd = ids_cd.get(list(ids_cd.keys())[-1])
-        except:
-            continue
-        for i_run, id_run in enumerate(mouse['run_id_spont']):
+    id_runs=mouse.run_id_spont
+    for i, id_run in enumerate(id_runs):
+        print('run%d' % id_run)
+        ids_cd_selected=[x['_id'] for x in list(db.neu_cd.find(dict(is_on_all_conds=True, id_mouse=id_mouse), {'_id': 1}))]
+        cd_stats=get_cd_stats(db, mouse, id_run, stat, ids_cd_selected)
+        mean, err, _ = meanerr(cd_stats)
+        title = ' crossday %s for %s spontaneous run %d' % (mouse['name'], stat, id_run)
+        filename = '%s\\%d%d_cd_meanact_all_conds.jpg' % (outdir,id_run,mouse._id)
+        legend=['>%d%% (n=%s)' % (t * 100, n) for t, n in zip(thresholds, n_valid)]
+        cd_plot_line(mouse, title, filename, mean=mean, err=err,legend=legend)
+
+
+        for i, id_run in enumerate(mouse['run_id_spont']):
             print('run%d' % id_run)
             stats_mean = np.empty([len(stats), len(thresholds), n_sess])
             stats_err = np.empty([len(stats), len(thresholds), n_sess])
@@ -249,109 +249,38 @@ def crossday_mean_acitivty_across_thresholds():
                 stats_mean[:, k, :] = np.nanmean(stat_result, axis=2)
                 stats_err[:, k, :] = sem(stat_result, axis=2, nan_policy='omit')
                 print(np.count_nonzero(~np.isnan(stat_result[0]), axis=1))
-            if id_mouse == 0 and id_run == 2:
-                stats_mean[:, :, 4] = np.nan  # because the run is not right rn
-                stats_err[:, :, 4] = np.nan
-
-            for j, stat in enumerate(stats):
-                plt.clf()
-                fig = plt.figure(figsize=(12 * (n_sess / 16), 9))
-                for mean, err in zip(stats_mean[j], stats_err[j]):
-                    l = plt.plot(mean)[0]
-                    plt.fill_between(l.get_xdata(), mean - err, mean + err, color=l.get_color(),
-                                     alpha=0.2, edgecolor='none')
-                plt.legend(['>%d%% (n=%s)' % (t * 100, n) for t, n in zip(thresholds, n_valid)], fontsize=8)
-                plt.title('%s crossday %s for spontaneous run#%d' % (mouse['name'], stat, i_run))
-                plt.tight_layout()
-                savePlot(fig, '%s\\cd %s run %d mouse %d.jpg' % (stat, stat, id_run, id_mouse))
 
 
-def crossday_mean_acitivty_subselect():
-    stats = ['mean', 'std', 'rms']
-    projection = {'_id': 0, 'id_ses': 1}
+def crossday_mean_acitivty_subselect_all_conds_wrapper(db):
+    stats = ['mean', 'std', 'rms', 'auc']
     for stat in stats:
-        projection[stat] = 1
+        mouse_loop(db, crossday_mean_acitivty_subselect_all_conds, cd=True, stat=stat,outdir=db.config.find_one()['_testpath'])
 
-    for mouse in db.mouse.find():
-        print(mouse['name'])
-        id_mouse = mouse['_id']
-        n_sess = mouse['n_sess']
-        for i_run, id_run in enumerate(mouse['run_id_spont']):
-            print('run%d' % id_run)
-            stats_mean = np.empty([len(stats), n_sess])
-            stats_err = np.empty([len(stats), n_sess])
-            neus_cd = list(db.neu_cd.find({'is_on_all_conds': True, 'id_mouse': id_mouse}, {'_id': 0, 'id_cdneu': 1}))
-            valid_ids = [x['id_cdneu'] for x in neus_cd]
-
-            stat_result = np.empty([len(stats), n_sess, len(valid_ids)], dtype=float)
-            stat_result[:] = np.nan
-            for i, id_cd in enumerate(valid_ids):
-                findquery = {'id_mouse': id_mouse, 'id_run': id_run, 'id_cd': id_cd, 'is_nonphys': {'$exists': 0}}
-                for neu in db.neu_run_spont.find(findquery, projection):
-                    for j, stat in enumerate(stats):
-                        stat_result[j, neu['id_ses'], i] = neu[stat]
-            stats_mean[:, :] = np.nanmean(stat_result, axis=2)
-            stats_err[:, :] = sem(stat_result, axis=2, nan_policy='omit')
-            print(np.count_nonzero(~np.isnan(stat_result[0]), axis=1))
-            if id_mouse == 0 and id_run == 2:
-                stats_mean[:, 4] = np.nan  # because the run is not right rn
-                stats_err[:, 4] = np.nan
-
-            for j, stat in enumerate(stats):
-                plt.clf()
-                fig = plt.figure(figsize=(12 * (n_sess / 16), 9))
-                mean = stats_mean[j]
-                err = stats_err[j]
-                l = plt.plot(mean)[0]
-                plt.fill_between(l.get_xdata(), mean - err, mean + err, color=l.get_color(),
-                                 alpha=0.2, edgecolor='none')
-                plt.title(
-                    '%s crossday %s for spontaneous run#%d \n(subselect neurons that are active for at least 1 day on all all conditons)' % (
-                    mouse['name'], stat, i_run))
-                plt.tight_layout()
-                savePlot(fig, '%s\\cd %s run %d mouse %d subselect.jpg' % (stat, stat, id_run, id_mouse))
+def crossday_mean_acitivty_subselect_all_conds():
+    id_runs=mouse.run_id_spont
+    for i_run, id_run in enumerate(id_runs):
+        print('run%d' % id_run)
+        ids_cd_selected=[x['_id'] for x in list(db.neu_cd.find(dict(is_on_all_conds=True, id_mouse=id_mouse), {'_id': 1}))]
+        cd_stats=get_cd_stats(db, mouse, id_run, stat, ids_cd_selected)
+        mean, err, _ = meanerr(cd_stats)
+        title = '%s run %d crossday %s (subselect neurons that are present on at least one day in all conditions)' % (
+                mouse.name, id_run, stat)
+        filename = '%s\\%d%d_cd_meanact_all_conds.jpg' % (outdir,id_run,mouse._id)
+        cd_plot_line(mouse, title, filename, mean=mean, err=err)
 
 
-# TODO: this is still a script not a function
-def crossday_meanact():
-    stat = 'mean'  # 'rms'
-    for mouse in db.mouse.find({'_id': {'$gt': 4}}):
-        id_mouse = mouse['_id']
-        print(mouse['name'])
-        n_sess = mouse['n_sess']
-        # number of days active to be a valid crossday neuron
-        thres_valid = 0
-        try:
-            ids_cd = loadmat(mouse['fp_crossday'])
-            ids_cd = ids_cd.get(list(ids_cd.keys())[-1])
-            if thres_valid == 0:
-                valid_ids = list(range(ids_cd.shape[0]))
-            else:
-                valid_ids = np.where(np.sum(ids_cd > 0, axis=1) > thres_valid)[0].tolist()
-        except:
-            continue
-        for id_run in mouse['run_id_spont']:
-            print('run%d' % id_run)
-            stats = np.empty([n_sess, len(valid_ids)], dtype=float)
-            stats[:] = np.nan
-            for i, id_cd in enumerate(valid_ids):
-                sess = []
-                stats_cd = []
-                findquery = {'id_mouse': id_mouse, 'id_run': id_run, 'id_cd': id_cd, 'is_nonphys': {'$exists': 0}}
-                projection = {'_id': 0, stat: 1, 'id_ses': 1}
-                for neu in db.neu_run_spont.find(findquery, projection):
-                    sess.append(neu['id_ses'])
-                    stats_cd.append(neu[stat])
-                stats[sess, i] = stats_cd
-                if id_cd % 1000 == 0:
-                    print(id_cd)
+def crossday_meanact_wrapper(db):
+    mouse_loop(db, crossday_meanact, cd=True, outdir=db.config.find_one()['_testpath'])
 
-            plt.clf()
-            fig = plt.figure(figsize=(20, 15))
-            plt.plot(stats, alpha=0.4)
-            plt.title('%s run %d crossday %s' % (mouse['name'], id_run, stat))
-            plt.tight_layout()
-            savePlot(fig, 'c\\cd %s run %d mouse %d.jpg' % (stat, id_run, id_mouse))
+def crossday_meanact(outdir):
+    id_runs = mouse.run_id_spont
+    for i_run, id_run in enumerate(id_runs):
+        print('run%d' % id_run)
+        cd_stats=get_cd_stats(db,mouse,id_run,stat)
+        title = '%s run %d crossday mean activity' % (
+                mouse.name, id_run)
+        filename = '%s\\%d%d_cd_meanact.jpg' % (outdir,id_run,mouse._id)
+        cd_plot_line(mouse, title, filename, data=cd_stats,alpha_data=0.4)
 
 
 def cd_visdriven_on_last_baseline_wrapper(db):
@@ -359,15 +288,63 @@ def cd_visdriven_on_last_baseline_wrapper(db):
     for stat in stats:
         mouse_loop(db, cd_visdriven_on_last_baseline, cd=True, stat=stat,outdir=db.config.find_one()['_testpath'])
 
-def vd_in_ses(db, id_mouse, id_ses, id_run):
+def cd_visdriven_on_last_baseline(db, mouse, stat, outdir):
+    id_ses=mouse.cond_poles[0]-1
+    id_runs=mouse.run_id_spont
+
+    for i_run, id_run in enumerate(id_runs):
+        print('run%d' % id_run)
+        vd_neus = find_neu_runs(db, mouse._id, id_ses, id_run + 1,addn_criteria=dict(is_visdriven=True)) #TODO +1: oops this is hard coding..
+        cd_stats=get_cd_stats(db, mouse, id_run, stat, neu_to_cd(vd_neus))
+        mean, err, _ = meanerr(cd_stats)
+        title = '%s run %d crossday %s (subselect vis driven neurons on the last baseline day)' % (
+                mouse.name, id_run, stat)
+        filename = '%s\\%d%d_cd_%s.jpg' % (outdir,id_run, mouse._id,stat)
+        cd_plot_line(mouse, title, filename, data=cd_stats, mean=mean, err=err)
+
+def cd_mean_between_conds(db,mouse,stat,outdir):
+    ids_cd = load_ids_cd(mouse)
+    if ids_cd is None:
+        return
+
+    ses_queries = [dict(cond_code='B', hour={'$gt': 24}),
+                   dict(cond_code='S', hour={'$gt': 5, '$lt': 24}),
+                   dict(cond_code='S', hour={'$gt': 24})]
+    find_query=dict(id_mouse=mouse._id)
+    labels=['late baseline','early suture','late suture']
+    ids_cd_selected=[]
+    for ses_q in ses_queries:
+        find_query.update(ses_q)
+        id_sess=[x['id_ses'] for x in db.session.find(find_query,{'id_ses':1})]
+        ids_cd_selected.append([i if sum(x[id_sess])!=0 for x in ids_cd])
+
+
+    id_runs=mouse.run_id_spont
+    for i_run, id_run in enumerate(id_runs):
+        print('run%d' % id_run)
+                    for cd_neu in mouse.neu_cd.find(dict(id_mouse=mouse._id,id_ses={'$in':id_sess})):
+
+
+            vd_neus = find_neu_runs(db, mouse._id, id_sess, id_run + 1,) #TODO +1: oops this is hard coding..
+            cd_stats=get_cd_stats(db, mouse, id_run, stat, neu_to_cd(vd_neus))
+            mean, err, _ = meanerr(cd_stats)
+            title = '%s run %d crossday %s (subselect vis driven neurons on the last baseline day)' % (
+                    mouse.name, id_run, stat)
+            filename = '%s\\%d%d_cd_%s.jpg' % (outdir,id_run, mouse._id,stat)
+        cd_plot_bar(title, filename, data=cd_stats, mean=mean, err=err)
+
+
+#pick neu-runs
+def find_neu_runs(db, id_mouse, id_ses, id_run,addn_criteria=None):
     if type(id_ses) is list:
         id_ses = {'$in': id_ses}
-    x=list(
-        db.neu_run2.find(dict(is_visdriven=True, is_nonphys={'$exists':False},
-                              id_mouse=id_mouse, id_ses=id_ses, id_run=id_run),
-                         {'_id': 1, 'id_cd': 1}))
-    return x
+    find_query=dict(is_visdriven=True, is_nonphys={'$exists':False},
+                              id_mouse=id_mouse, id_ses=id_ses, id_run=id_run)
+    find_query.update(addn_criteria)
+    return list(db.neu_run2.find(find_query, proj('id_cd')))
 
+# bridges within database
+'''neu->neu_cd'''
 def neu_to_cd(neus_selected):
     ids_cd_selected = []
     for i, neu in enumerate(neus_selected):
@@ -375,102 +352,130 @@ def neu_to_cd(neus_selected):
             ids_cd_selected.append(neu['id_cd'])
         except:
             print('neu# %s not found in crossday' % neu['_id'])
-    return np.unique(ids_cd_selected).tolist()
-
-def get_cd_stats(db, ids_cd_selected, id_mouse, id_run, n_sess, stat):
-    stats = np.empty([n_sess, len(ids_cd_selected)], dtype=float)
+    ids_cd_selected=np.unique(ids_cd_selected).tolist()
+    return ids_cd_selected
+'''neu_cd->stat'''
+def get_cd_stats(db, mouse, id_run, stat, ids_selected=None,sess_selected=None):
+    n_neu_cd=mouse.nneu_cd if ids_selected is None else len(ids_selected)
+    stats = np.empty([mouse.n_sess, n_neu_cd], dtype=float)
     stats[:]=np.nan
+    findquery = dict(id_mouse=mouse._id, id_run=id_run, is_nonphys={'$exists': 0})
+    if sess_selected is not None:
+        findquery['id_ses']={'$in':sess_selected}
+    projection = proj(['id_ses', stat], inc__id=False)
 
-    for i,id_cd in enumerate(ids_cd_selected):
-        findquery = dict(id_mouse=id_mouse, id_run=id_run, id_cd=id_cd, is_nonphys={'$exists': 0})
-        projection = proj(['id_ses', stat], inc__id=False)
+    if ids_selected is None:
+        ids_selected=list(range(n_neu_cd))
+
+    for i,id_cd in enumerate(ids_selected):
+        findquery['id_cd'] = id_cd
         neus = list(db.neu_run2.find(findquery, projection))
         stats[[x['id_ses'] for x in neus], i] = [x[stat] for x in neus]
-    return stats,ids_cd_selected
+    return stats
 
+def get_neu_run_stats(db,run,stat,ids_selected=None):
+    if ids_selected is not None:
+        stats=[]
+        for id_neu in ids_selected:
+            stats.append(db.neu_run2.find(dict(_id='%s%04d'%(run._id,id_neu)),dict(stat=stat))[stat])
+        return stats
+    return [x[stat] for x in list(db.neu_run2.find(dict(_id_run=run._id),dict(stat=stat)))]
 
-def meanerr(data): # scaling if you want to inflate the trend so you get a better look..?
-    mean = np.nanmean(data, axis=1)
-    err = sem(data, axis=1, nan_policy='omit')
-    ndata = len(data[0])
-    return mean, err, ndata
-
-
-
-def cd_visdriven_on_last_baseline(db, mouse, stat,outdir):
-    id_ses=mouse.cond_poles[0]-1
-    for i_run, id_run in enumerate(mouse.run_id_spont):
-        print('run%d' % id_run)
-        vd_neus = vd_in_ses(db, mouse._id, id_ses, id_run + 1) #TODO +1: oops this is hard coding..
-        cd_stats,_=get_cd_stats(db, neu_to_cd(vd_neus), mouse._id, id_run, mouse.n_sess, stat)
-        mean, err, _ = meanerr(cd_stats)
-        title = '%s run %d crossday %s (subselect vis driven neurons on the last baseline day)' % (
-                mouse.name, id_run, stat)
-        filename = '%s\\cd %s run %d mouse %d.jpg' % (outdir,stat, id_run, mouse._id)
-
-        cd_plot(mouse, cd_stats, mean, err, title, filename)
-
-
-def get_cond_name(cond_code):
-    if cond_code == 'B':
-        return 'baseline'
-    elif cond_code == 'S':
-        return 'suture'
-    elif cond_code == 'U':
-        return 'unsuture'
-    elif cond_code == 'R':
-        return 'resuture'
-    else:
-        NameError('invalid condition code')
-
-
-def cd_plot(mouse, stats, mean, err, title, filename):
-    fig = plt.figure(figsize=(20 * (mouse.n_sess / 16), 15))
-    l = plt.plot(mean, color='b', linewidth=5)[0]
-    plt.fill_between(l.get_xdata(), mean - err, mean + err, color=l.get_color(),
-                     alpha=0.4, edgecolor='none')
-    plt.plot(stats, alpha=0.5)
-    cond_poles=[x for x in mouse.cond_poles]
-    cond_poles.insert(0, 0)
-    for x, label in zip(cond_poles, mouse.conds):
-        plt.axvline(x=x, label=label, color='r', linestyle='--')
-        plt.text(x - 0.3, plt.gca().get_ylim()[1] * 0.95, get_cond_name(label), fontsize=40)
-    ax = plt.gca()
-    ax.set_xticks(list(range(mouse.n_sess)))
-    ax.set_xticklabels(mouse.name_sess, fontsize=15)
-    plt.tight_layout()
-    plt.title(title)
-    savePlot_fig(fig, filename)
-
-
-def proj(fields, inc__id=True, reverse=False):
-    p = dict()
-    for fn in fields:
-        p['fn'] = 1
-    if not inc__id:
-        p['_id'] = 0
-    if reverse:
-        for key, val in p.items():
-            p[key] = 1 - val
-
-
+# loops
 def mouse_loop(db, func, cd=False,**kwargs):
+    rr=[]
     for mouse in db.mouse.find():
         mouse = DBinterface(mouse)
         print(mouse.name)
         if cd:
-            func(db,mouse,**kwargs)
+            r = func(db,mouse,**kwargs)
         else:
-            ses_loop(db, func, mouse,**kwargs)
+            r = run_loop(db, func, mouse, **kwargs)
+        rr.append(r)
+    return rr
 
-
-# TODO 1. **kwargs actually works, 2. add projections?
-def ses_loop(db, func, mouse, **kwargs):
+def run_loop(db, func, mouse, **kwargs):
+    rr=[]
     for ses in db.session.find(dict(id_mouse=mouse._id)):
         ses = DBinterface(ses)
         print(ses._id)
-        func(db=db, ses=ses, **kwargs)
+        r=func(db=db, ses=ses, **kwargs)
+        rr.append()
+    return rr
 
+# plottings
+# TODO the name 'show_all' is really bad
+def cd_plot_line(mouse, title, filename, data=None, mean=None, err=None, legend=None, show_cond_lines=True, alpha_data=0.5):
+    plt.figure(figsize=(1.25 * mouse.n_sess, 15))
+    ax=plt.gca()
+
+    if mean is not None:
+        plot_meanerr(ax,mean,err)
+    if legend is not None:
+        plt.legend(legend, fontsize=8)
+    if data is not None:
+        plt.plot(data, alpha=alpha_data)
+    if show_cond_lines:
+        plot_cond_poles(ax,mouse,fontsize=20)
+
+    set_xticks_sess_names(ax,mouse)
+    ax.tight_layout()
+    ax.title(title,fontsize=40)
+    savePlot(ax, filename)
+
+def cd_plot_bar( title, filename, mean, bar_labels,data=None, alpha_data=0.5):
+    plt.figure(figsize=(len(mean), 12))
+    ax = plt.gca()
+
+    ax.bar(bar_labels, mean)
+    if data is not None:
+        plt.plot(data, alpha=alpha_data,color='k',marker='o')
+
+    ax.tight_layout()
+    ax.title(title,fontsize=40)
+    savePlot(ax, filename)
+
+
+
+def plot_mouse_stat(mouse,data, title, filename, err=None):
+    plt.clf()
+    plt.figure(figsize=(len(data), 7.5))
+    l = plt.plot(data)[0]
+    if err is not None:
+        plt.fill_between(l.get_xdata(), data + err, data - err, color=l.get_color(), alpha=0.2)
+    plt.title(title)
+    set_xticks_sess_names(plt.gca(),mouse,fontsize=8)
+    plt.savefig(filename, bbox_inches='tight', pad_inches=0.2)
+    plt.close()
+
+def set_xticks_sess_names(ax,mouse,fontsize):
+    ax.set_xticks(list(range(mouse.n_sess)))
+    ax.set_xticklabels(mouse.name_sess, fontsize=fontsize)
+    return ax
+
+def plot_cond_poles(ax,mouse):
+    cond_poles = [x for x in mouse.cond_poles]
+    cond_poles.insert(0, 0)
+    for x, label in zip(cond_poles, mouse.conds):
+        ax.axvline(x=x, label=label, color='r', linestyle='--')
+        ax.text(x - 0.3, ax.get_ylim()[1] * 0.95, get_cond_name(label), fontsize=40)
+    return ax
+
+def plot_meanerr(ax,mean,err=None):
+    if len(mean.shape) == 1:
+        l = ax.plot(mean, color='b', linewidth=5)[0]
+        if err is not None:
+            ax.fill_between(l.get_xdata(), mean - err, mean + err, color=l.get_color(),
+                             alpha=0.2, edgecolor='none')
+    else:
+        if err is not None:
+            for m, e in zip(mean, err):
+                l = ax.plot(mean, color='b', linewidth=2)[0]
+                ax.fill_between(l.get_xdata(), m - e, m + e, color=l.get_color(),
+                                 alpha=0.4, edgecolor='none')
+        else:
+            ax.plot(mean, color='b', linewidth=2)
+    return ax
 
 def plot_traces(db, ses, id_runs, folder):
     plt.figure(figsize=(15, 3.6))
@@ -493,11 +498,42 @@ def plot_traces(db, ses, id_runs, folder):
                 except:
                     print(_id)
 
-
-def stimBlocks(ax):
+def stimBlocks(ax,stim_events,color_scheme):
     ymin, ymax = ax.get_ylim()
     for event in stim_events:
-        ax.plot([event.on, event.off], [ymax, ymax], c=event.stim.color, marker='|', linewidth=20)
+        ax.plot([event.on, event.off], [ymax, ymax], c=color_scheme[event.label], marker='|', linewidth=20)
         ax.vlines([event.on, event.off], ymin, ymax, colors=['k', 'k'], linestyles='dashed', alpha=0.3)
     return ax
+
+# level 1-basic stats
+def meanerr(data): # scaling if you want to inflate the trend so you get a better look..?
+    mean = np.nanmean(data, axis=1)
+    err = sem(data, axis=1, nan_policy='omit')
+    ndata = len(data[0])
+    return mean, err, ndata
+
+#helpers
+def get_cond_name(cond_code):
+    if cond_code == 'B':
+        return 'baseline'
+    elif cond_code == 'S':
+        return 'suture'
+    elif cond_code == 'U':
+        return 'unsuture'
+    elif cond_code == 'R':
+        return 'resuture'
+    else:
+        NameError('invalid condition code')
+
+    #projections
+def proj(fields, inc__id=True, reverse=False):
+    p = dict()
+    for fn in fields:
+        p[fn] = 1
+    if not inc__id:
+        p['_id'] = 0
+    if reverse:
+        for key, val in p.items():
+            p[key] = 1 - val
+
 

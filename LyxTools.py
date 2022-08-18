@@ -135,8 +135,14 @@ def add_indexs_collection(col):
     print('time elapsed:%.2f'%(end_time - start_time))
 
 def id(_id):
-    return {'_id':_id}
+    return {'_id':_id} #this is pretty useless.. TODO
 
+def load_ids_cd(mouse):
+    try:
+        ids_cd = loadmat(mouse['fp_crossday'])
+        return ids_cd.get(list(ids_cd.keys())[-1])
+    except:
+        return None
 ################################## <PLOTTING> #############################################
 def savePlot(ax,filename):
     fig = ax.get_figure()
