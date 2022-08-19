@@ -92,8 +92,8 @@ def sf(col, doc, dict):
 def sf_id(col, _id, dict):
     col.update_one({'_id':_id}, {"$set": dict})
 
-def sf_ids(col, dict_ids, dict):
-    col.update_many({'_id':{'$in':dict_ids}}, {"$set": dict})
+def sf_ids(col, _ids, dict):
+    col.update_many({'_id':{'$in':_ids}}, {"$set": dict})
 
 def sf_config(db,fieldname,value):
     db.config.update_one({},{'$set':{fieldname:value}})
@@ -133,6 +133,17 @@ def add_indexs_collection(col):
         col.create_index([(k, 1)])
     end_time = time.time()
     print('time elapsed:%.2f'%(end_time - start_time))
+
+def add_indexs_collection(col):
+    db.neu_run.create_index([('id_mouse',1),('id_ses',1),('id_run',1)])
+    db.neu_run.create_index([('_id_ses',1),('id_run',1)])
+
+    db.session.create_index([('id_mouse',1),('id_ses',1)])
+
+    db.run.create_index([('id_mouse',1),('id_ses',1),('id_run',1)])
+    db.run.create_index([('_id_ses',1),('id_run',1)])
+
+
 
 def id(_id):
     return {'_id':_id} #this is pretty useless.. TODO

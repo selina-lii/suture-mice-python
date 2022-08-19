@@ -67,12 +67,12 @@ def add_mice():
         _, cond_poles = np.unique(conds, return_index=True)
         cond_poles.sort()
         conds = conds[cond_poles]
-        sf_id(db.mouse,mouse['_id'],'conds',conds)
-        sf_id(db.mouse,mouse['_id'],'cond_poles',cond_poles[1:])
+        sf_id(db.mouse,mouse._id,'conds',conds)
+        sf_id(db.mouse,mouse._id,'cond_poles',cond_poles[1:])
 
 def add_neurons():
     for mouse in db.mouse.find():
-        id_mouse=mouse['_id']
+        id_mouse=mouse._id
         n_runs=mouse['n_runs']
         for ses in db.session.find({'id_mouse':id_mouse}):
             _id_ses=ses['_id']
@@ -87,7 +87,7 @@ def add_neurons():
             cellIdxs = intarr(data.cellIdx, mat2py=True)
 
             for id_neu, (stat, snr, id_neu_glob,auc_neu) in enumerate(zip(stats, snrs, cellIdxs, aucs)):
-                _id_neu = "%s0%04d" % (_id_ses, id_neu)
+                _id = "%s%04d" % (_id_ses, id_neu)
                 snr = snr.item()
                 try:
                     roi_pix_x = intarr(stat.xext)
@@ -96,17 +96,30 @@ def add_neurons():
                     roi_pix_x = intarr(stat.xcirc)
                     roi_pix_y = intarr(stat.ycirc)#TODO
                 roi_med = [int(stat.med[1]), int(stat.med[0])]
-                DBinterface(_id=_id_neu, id_mouse=id_mouse, _id_ses=_id_ses, id_neu=id_neu, id_neu_glob=id_neu_glob,
+                DBinterface(_id=_id, id_mouse=id_mouse, _id_ses=_id_ses, id_neu=id_neu, id_neu_glob=id_neu_glob,
                             roi_pix_x=roi_pix_x, roi_pix_y=roi_pix_y, roi_med=roi_med, snr=snr).insert(db.neuron)
 
                 for id_run,auc in enumerate(auc_neu):
-                    pass
+
+                    _id_neu_run = "%s%d%04d" % (_id_ses, id_run,id_neu)
+                    DBinterface(_id=_id_neu_run,id_mouse=id_mouse,_id_ses=_id_ses,id_neu=id_neu,id_neu_glob=id_neu_glob,
+                                auc=auc,mean=mean,std=std,min=float(min(dff)),max=float(max(dff)),)
+
+                    mean=float(np.mean(dff))
+                    rms=float(np.sqrt(np.mean(np.square(dff))))
+                    kurt=kurtosis(dff)
+                    std=float(np.std(dff))
+                    neu=DBinterface(_id=_id,id_mouse=id_mouse,_id_ses=_id_ses,_id_run=_id_run,id_run=id_run,id_neu=id_neu,
+
+                                    rms=rms,kurt=kurt,)
+
+                    neu.insert(db.neu_run_spont)
 
 #TODO still messy
-def mainloop(save_refimg=False, add_sessions=False, add_runs=False, add_stims=False, update_mouse=False):
+def add_data(save_refimg=False, add_sessions=False, add_runs=False, add_stims=False, update_mouse=False):
     for mouse in db.mouse.find():
-        name_mouse=mouse['name']
-        id_mouse=mouse['_id']
+        name_mouse=mouse.name
+        id_mouse=mouse._id
         name_sess=mouse['name_sess']
         fps_mouse_suite2pData = glob.glob("%s\\%s\\*dff*.mat" % (config.dir_input, name_mouse))
 
@@ -264,40 +277,6 @@ def add_grids(stim_labels):
                    row_poles=row_poles, row_end=row_end, row_labels=row_labels,
                    col_poles=col_poles, col_end=col_end, col_labels=col_labels).insert(db.grid)
 
-#TODO
-def add_empty_neu_runs():
-    for ses in db.session.find({},{'run_id_stim':1,'run_id_spont':1,'n_neu':1}):
-        _id_ses=ses['_id']
-        runs=ses['run_id_stim']
-        for id_neu in range(ses['n_neu']):
-            for id_run in runs:
-                _id='%s%d%04d'%(_id_ses,id_run,id_neu)
-                id_mouse=int(_id_ses[0])
-                _id_run=_id[0:3]
-                neu=DBinterface(_id=_id,id_mouse=id_mouse,_id_ses=_id_ses,_id_run=_id_run,id_run=id_run,id_neu=id_neu)
-                neu.insert(db.neu_run)
-
-def add_basic_neu_runs():
-    for ses in db.session.find({},{'run_id_spont':1,'fp_dff':1}):
-        dff_ses=loadmat(ses['fp_dff'])['dFF']
-        _id_ses=ses['_id']
-        for id_run in range(ses['n_runs']):
-            _id_run='%s%01d'%(_id_ses,id_run)
-            run=db.run.find_one({'_id':_id_run},{'start_ses':1,'end_ses':1})
-            dff_run=dff_ses[:,run['start_ses']:run['end_ses']]
-            for id_neu,dff in enumerate(dff_run):
-                _id='%s%04d'%(_id_run,id_neu)
-                id_mouse=int(_id_ses[0])
-
-                rms=float(np.sqrt(np.mean(np.square(dff))))
-                kurt=kurtosis(dff)
-                #samp_en=float(SampEn(dff)[0][1]) #TODO: not sure... taking m=2 rn
-                mean=float(np.mean(dff))
-                std=float(np.std(dff))
-                neu=DBinterface(_id=_id,mean=mean,std=std,min=float(min(dff)),max=float(max(dff)),
-                                rms=rms,kurt=kurt,#samp_en=samp_en,
-                                id_mouse=id_mouse,_id_ses=_id_ses,_id_run=_id_run,id_run=id_run,id_neu=id_neu)
-                neu.insert(db.neu_run_spont)
 
 #TODO: this is never,never,never gonna finish at 10sec/neuron
 def add_sampen():
@@ -331,16 +310,15 @@ def get_sampen():
                         pass
 
 ############################# DEFINE VISUALLY DRIVEN NEURONS ##############################################
-
-# kl or js
-def dist_distrib(dff, grid, run, baselineIdxs, nonbaseIdxs, dist_type='kl_raw'):
+# statistical distance between two samples
+def dist_2samples(dff, grid, run, baselineIdxs, nonbaseIdxs, dist_type='js'):
     trialmat = tm(dff,grid)
     pools = np.array([np.hsplit(x, grid['col_poles']) for x in np.split(trialmat, grid['row_poles'])], dtype=object)
     for r in range(pools.shape[0]):
         for c in range(pools.shape[1]):
             pools[r][c] = pools[r][c].flatten()
 
-    js_dists = np.empty([len(baselineIdxs), len(run['stim_labels'])])
+    sample_dists = np.empty([len(baselineIdxs), len(run['stim_labels'])])
     for ori in range(pools.shape[0]):
         for (cond, (bcond, nbcond)) in enumerate(zip(baselineIdxs, nonbaseIdxs)):
             bp = pools[ori, bcond]
@@ -353,23 +331,16 @@ def dist_distrib(dff, grid, run, baselineIdxs, nonbaseIdxs, dist_type='kl_raw'):
             nbhist = np.histogram(nbp, bins=10, range=[minr, maxr])[0]
             nbhist = nbhist / sum(nbhist)
 
-            if dist_type=='kl':
-                kl=[p*(log2(p/q)) if p!=0 and q!=0 else 0 for p,q in zip(nbhist,bhist)]
-                js_dists[cond, ori]=max(np.sum(kl),0)
-
-            elif dist_type=='kl_raw':
-                js_dists[cond, ori] = sum(rel_entr(bhist, nbhist))
-
-            elif dist_type=='js':
-                dist_mean=[(b+nb)/2 for nb,b in zip(nbhist,bhist)]
+            if dist_type=='js':
+                '''dist_mean=[(b+nb)/2 for nb,b in zip(nbhist,bhist)]
                 kl_l=[p*(log2(p/q)) if p!=0 else 0 for p,q in zip(nbhist,dist_mean)]
                 kl_r=[p*(log2(p/q)) if p!=0 else 0 for p,q in zip(bhist,dist_mean)]
-                js_dists[cond, ori] =np.sqrt((sum(kl_l)+sum(kl_r))/2)
-                #js_dists[cond, ori] = jensenshannon(bhist, nbhist)
+                sample_dists[cond, ori] =np.sqrt((sum(kl_l)+sum(kl_r))/2)'''
+                sample_dists[cond, ori] = jensenshannon(bhist, nbhist)
 
             else:
                 KeyError('unsupported type of distribution distance')
-    return js_dists
+    return sample_dists
 
 def visual_driven_loop(db,dist_type):
     baselineIdxs = [0, 0, 1]
@@ -385,20 +356,24 @@ def visual_driven_loop(db,dist_type):
             dffs_run = dffs_ses[:, run['start_ses']:run['end_ses']]
             grid = fd_id(db.grid,_id_grid)
             for neu_id, dff in enumerate(dffs_run):
-                vd = dist_distrib(dff, grid, run, baselineIdxs, nonbaseIdxs,dist_type=dist_type)
-                #sf_id(db.neu_run, "%s%d%04d"%(_id_ses,id_run,neu_id), dist_type, vd.tolist())
+                vd = dist_2samples(dff, grid, run, baselineIdxs, nonbaseIdxs, dist_type=dist_type)
+                sf_id(db.neu_run, "%s%d%04d"%(_id_ses,id_run,neu_id), dist_type, vd.tolist())
 
-def summary_of_array(arr,keep_rows=None,keep_cols=None,max=False,binarize=False,thres=None,
-                     scale_rows=None,scale_rows_factor=None,scale_cols=None,scale_cols_factor=None):
-    #TODO: is it okay not to copy arr into a new var.. gonna be deep copy & change the original value
-    arrmax_row=None
-    arrmax_col=None
-    arrmax=None
 
-    arr_bin=None
-    arrmax_row_bin=None
-    arrmax_col_bin=None
-    arrmax_bin=None
+# finding maximum value by different level and axis of an array
+'''
+    return list will contain (at full capacity):
+        0 - corrected array
+        1 - corrected array bool
+        2 - max of array
+        3 - max of array bool
+        4 - max by row
+        5 - max by row bool
+        6 - max by column
+        7 - max by column bool
+'''
+def summary_of_array(arr,keep_rows=None,keep_cols=None,max=False,sum_arr=False,sum_row=False,sum_col=False,binarize=False,
+                     thres=None,scale_rows=None,scale_rows_factor=None,scale_cols=None,scale_cols_factor=None):
 
     if isinstance(arr,list):
         arr=np.asarray(arr)
@@ -423,26 +398,41 @@ def summary_of_array(arr,keep_rows=None,keep_cols=None,max=False,binarize=False,
         else:
             arr[:,scale_cols]=arr[:,scale_cols]*scale_cols_factor
 
-    if max:
-        arrmax_col=np.max(arr,axis=0)
-        arrmax_row=np.max(arr,axis=1)
-        arrmax = np.max(arrmax_row)
+    return_list = []
 
-    if binarize:  # there must be a threshold
+    if binarize:
         assert thres is not None
-        arr_bin = np.where(arr > thres, True, False)
-        if max:
-            arrmax_col_bin = np.logical_or.reduce(arr_bin, 0)
-            arrmax_row_bin = np.logical_or.reduce(arr_bin, 1)
-            arrmax_bin = arrmax > thres
 
-    return arr.tolist(),arrmax_row.tolist(),arrmax_col.tolist(),float(arrmax),\
-           arr_bin.tolist(),arrmax_row_bin.tolist(),arrmax_col_bin.tolist(),bool(arrmax_bin)
+    if max:
+        arrmax = np.max(arr[:])
+        return_list.append(float(arrmax))
+        if binarize:
+            return_list.append(bool(arrmax > thres))
 
-def vd_proc(jss,stim_labels_low_n,scale_down_factor,thres,selected_conds=None):
-    return summary_of_array(jss, keep_rows=selected_conds, max=True, binarize=True, thres=thres,
+    if sum_arr:
+        return_list.append(arr.tolist())
+        if binarize:
+            return_list.append(np.where(arr > thres, True, False).tolist())
+
+    if sum_row:
+        arrmax = np.max(arr, axis=1)
+        return_list.append(arrmax.tolist())
+        if binarize:
+            return_list.append(np.where(arrmax > thres, True, False).tolist())
+
+    if sum_col:
+        arrmax = np.max(arr, axis=0)
+        return_list.append(arrmax.tolist())
+        if binarize:
+            return_list.append(np.where(arrmax > thres, True, False).tolist())
+
+    return return_list
+
+def vd_proc(vd_stats,stim_labels_low_n,scale_down_factor,thres,selected_conds=None):
+    return summary_of_array(vd_stats, keep_rows=selected_conds, max=True, sum_arr=True, binarize=True, thres=thres,
                      scale_cols=stim_labels_low_n,
                      scale_cols_factor=scale_down_factor)
+
 
 #TODO: put this into.. idk the right shape since we have neu_run now
 def js_proc_loop(threshold,scale_down_factor):
@@ -457,49 +447,19 @@ def js_proc_loop(threshold,scale_down_factor):
             stim_labels_low_n_runs.append(stim_labels_low_n)
         for neu in db.neu_run.find({'id_ses':ses['_id']},{'js':1}):
             for id_run,stim_labels_low_n in zip(ses['run_id_stim'],stim_labels_low_n_runs):
-                vd_corrected,vd_max_cond,vd_max_ori,vd_max,is_visdriven_mat,is_visdriven_cond,is_visdriven_ori,is_visdriven=\
-                    vd_proc(neu['js'],stim_labels_low_n,scale_down_factor,thres)#selected_conds
-                sf_id(db.neu_run, neu['_id'], 'js_corrected', js_corrected)
-                sf_id(db.neu_run, neu['_id'], 'js_max_cond', js_max_cond)
-                sf_id(db.neu_run, neu['_id'], 'js_max_ori', js_max_ori)
-                sf_id(db.neu_run, neu['_id'], 'js_max', js_max)
-                sf_id(db.neu_run, neu['_id'], 'is_visdriven_mat', is_visdriven_mat)
-                sf_id(db.neu_run, neu['_id'], 'is_visdriven_cond', is_visdriven_cond)
-                sf_id(db.neu_run, neu['_id'], 'is_visdriven_ori', is_visdriven_ori)
-                sf_id(db.neu_run, neu['_id'], 'is_visdriven', is_visdriven)
+                [js_corrected, is_visdriven_max, js_max, is_visdriven] = vd_proc(neu['js'],stim_labels_low_n,scale_down_factor,thres)#selected_conds
+                sf_id(db.neu_run, neu['_id'], dict(js_corrected=js_corrected,is_visdriven_max=is_visdriven_max,
+                                                   js_max=js_max,is_visdriven=is_visdriven))
 
 ############################# PLOTTING V1.0 ############################################
-
-def n_visdriven(db):
-    n_vd_neu=np.zeros([2,7,30],dtype=int)
-    for mouse in db.mouse.find():
-        id_mouse = mouse['_id']
-        for ses in db.session.find({'id_mouse':id_mouse},{'run_id_stim':1,'id_ses':1}):
-            for i,id_run in enumerate(ses['run_id_stim']):
-                n_vd_neu[i,id_mouse,ses['id_ses']]=len(list(db.neuron.find({'id_ses':ses['_id'],'is_visdriven_%d'%id_run:True},{'is_visdriven_%d':1})))
-
-    for i,_ in enumerate(n_vd_neu):
-        for j,each in enumerate(_):
-            mouse=fd_id(db.mouse,j)
-            if mouse is not None and len(mouse['run_id_stim'])>i:
-                mouse_name = mouse['name']
-                id_run = mouse['run_id_stim'][i]
-
-                n=mouse['n_sess']
-                names=mouse['name_sess']
-                d=each[:n]
-                tt="# visually driven neurons - %s run%d" % (mouse_name, id_run)
-                fn='%s_run%d_nvdn.jpg' % (mouse_name, id_run)
-                plot_mouse_stat(d,n,tt,names,fn)
-    return n_vd_neu
 
 #assigning crossday index for each neuron
 def crossday(db,crossdaydir):
     for mouse in db.mouse.find():
-        id_mouse=mouse['_id']
+        id_mouse=mouse._id
         run_id_spont=mouse['run_id_spont']
         run_id_stim = mouse['run_id_stim']
-        fp_crossday=crossdaydir+'\\'+mouse['name']+'.mat'
+        fp_crossday=crossdaydir+'\\'+mouse.name+'.mat'
         ids_cd=load_ids_cd(mouse)
         if ids_cd is None:
             continue
@@ -514,53 +474,34 @@ def crossday(db,crossdaydir):
                     #print('%s: %s'%(_id_neu,id_cdneu) )
                     #sf_id(db.neuron,_id_neu,'id_cd',id_cdneu)
 
-def crossday_imshow():
-    for mouse in db.mouse.find():
-        id_mouse=mouse['_id']
-        fp_crossday=config.workdir+config.crossdaydir+'\\'+mouse['name']+'.mat'
+def add_crossday_neurons(mouse):
         ids_cd=load_ids_cd(mouse)
         if ids_cd is None:
-            continue
-        plt.clf()
-        n=ids_cd.shape[0]//100+1
-        nx=20
-        ny=n//nx+1
-        fig, axs = plt.subplots(ny,nx,figsize=(nx*ids_cd.shape[1]//12, ny*6))
-        fig.suptitle('Horizontally stacked subplots')
-        for ax in axs.flatten():
-            ax.set_visible(False)
-        for ax,slice in zip(axs.flatten(),np.array_split((ids_cd>0)*1,n)):
-            ax.imshow(slice)
-            ax.set_visible(True)
-            ax.xaxis.set_visible(False)
-            ax.yaxis.set_visible(False)
-        fig.suptitle('%s crossday cell consistency' % (mouse['name']))
-        plt.tight_layout()
-        savePlot_fig(fig, 'cd check_%d.jpg'%id_mouse)
-
-def add_neurons_crossday():
-    for mouse in db.mouse.find():
-        ids_cd=load_ids_cd(mouse)
-        if ids_cd is None:
-            continue
-        print(mouse['name'])
-        id_mouse=mouse['_id']
-        n_sess=mouse['n_sess']
-        cond_poles=mouse['cond_poles']
+            return
+        print(mouse.name)
 
         for id_cdneu, id_neus in enumerate(ids_cd):
             _id='%d%04d'%(id_mouse,id_cdneu)
 
             vec=(id_neus!=0)
             is_on_n_sess=np.count_nonzero(vec)
-            is_on_percent_sess=is_on_n_sess/n_sess*100
-            is_on_all_conds=np.all([np.any(x) for x in np.split(vec,cond_poles)]).tolist()
-            id_neus=id_neus.tolist()
+            is_on_percent_sess=is_on_n_sess/mouse.n_sess*100
+            is_on_all_conds=np.all([np.any(x) for x in np.split(vec,mouse.cond_poles)]).tolist()
+            id_sess=np.nonzero(x).tolist()
+            id_neus=id_neus[id_sess]
 
-            DBinterface(_id=_id,id_mouse=id_mouse,id_cdneu=id_cdneu,id_neus=id_neus,
+            DBinterface(_id=_id,id_mouse=mouse._id,id_cdneu=id_cdneu,id_sess=id_sess,id_neus=id_neus,
                         is_on_all_conds=is_on_all_conds,
-                        is_on_n_sess=is_on_n_sess,
-                        is_on_percent_sess=is_on_percent_sess).insert(db.neu_cd)
+                        is_on_n_sess=is_on_n_sess,is_on_percent_sess=is_on_percent_sess).insert(db.neu_cd)
+            #update neuron and neu_run
+            _id_neurons=[]
+            _id_neu_runs=[]
+            for id_ses,id_neu in zip(id_sess,id_neus):
+                _id_neurons.append('%d%02d0%04d'%(mouse._id,id_ses,id_neu))
+                for id_run in range(mouse.n_runs):
+                    _id_neu_runs.append('%d%02d0%04d'%(mouse._id,id_ses,id_run,id_neu))
+            sf_ids(db.neuron, _id_neurons, dict(id_cd=id_cdneu))
+            sf_ids(db.neu_run, _id_neu_runs, dict(id_cd=id_cdneu))
 
 #TODO: might be a module
 def db_of_plots():
@@ -571,9 +512,9 @@ def db_of_plots():
 
 def test_threshold_for_js():
     for mouse in db.mouse.find({}, {'_id': 1, 'run_id_stim': 1, 'name': 1, 'js_m+1std': 1}):
-        id_mouse = mouse['_id']
+        id_mouse = mouse._id
         for id_run, thres in zip(mouse['run_id_stim'], mouse['js_m+1std']):
-            fp_out = config.workdir + '\\2022-7-22-plots\\test_tm2\\%s_run%d' % (mouse['name'], id_run)
+            fp_out = config.workdir + '\\2022-7-22-plots\\test_tm2\\%s_run%d' % (mouse.name, id_run)
             mkdir(fp_out)
             for type in ['above_thres', 'below_thres']:
                 fp_out_type = fp_out + '\\' + type
@@ -614,11 +555,11 @@ def add_auc():
     print('time elapsed:%.2f'%(end_time - start_time))
 
 
-def cd_pull_files():
-    meta='C:\\Users\\selinali\\lab\\sut\\2022-7-22-plots\\trialsmat_cd'
+def cd_pull_files(plot_type):
+    meta='C:\\Users\\selinali\\lab\\sut\\2022-7-22-plots\\cd_%s' % (plot_type)
     for mouse in db.mouse.find({'n_neu_cd':{'$exists':1}}):
-        id_mouse = mouse['_id']
-        name=mouse['name']
+        id_mouse = mouse._id
+        name=mouse.name
         n_neu_cd=mouse['n_neu_cd']
         mkdir('%s\\%s'%(meta,name))
         for id_run in mouse['run_id_stim']:
@@ -630,16 +571,16 @@ def cd_pull_files():
                 for id_ses,id_neu in enumerate(id_neus):
                     if id_neu!=0:
                         id='%d%02d%d%04d'%(id_mouse,id_ses,id_run,id_neu-1)
-                        src_folder='C:\\Users\\selinali\\lab\\sut\\2022-7-22-plots\\db_trialsmat'
+                        src_folder='C:\\Users\\selinali\\lab\\sut\\2022-7-22-plots\\db_%s' % (plot_type)
                         try:
                             shutil.copyfile('%s\\%s.jpg'%(src_folder,id),'%s\\%s.jpg'%(tgt_folder,id))
                         except:
                             pass
 
 def find_cd_dff_lims():
-    for mouse in db.mouse.find({'keep':True}):
-        print(mouse['name'])
-        id_mouse = mouse['_id']
+    for mouse in db.mouse.find({}):
+        print(mouse.name)
+        id_mouse = mouse._id
         n_runs = mouse['n_runs']
         for neu_cd in db.neu_cd.find({'id_mouse':id_mouse,'is_empty':{'$exists':0}},{'_id':0,'id_cdneu':1}):
             id_cd=neu_cd['id_cdneu']
