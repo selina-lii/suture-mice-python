@@ -550,7 +550,7 @@ def add_auc():
         _id=neu['_id']
         for id_run,auc in enumerate(neu['auc']):
             findquery={'_id':'%s%d%s' %(_id[:3],id_run,_id[4:])}
-            db.neu_run2.update_one(findquery,{'$set':{'auc':auc}})
+            db.neu_run.update_one(findquery,{'$set':{'auc':auc}})
     end_time = time.time()
     print('time elapsed:%.2f'%(end_time - start_time))
 
@@ -586,13 +586,13 @@ def find_cd_dff_lims():
             id_cd=neu_cd['id_cdneu']
             print(id_cd)
             for id_run in range(n_runs):
-                neus = list(db.neu_run2.find({'id_mouse': id_mouse, 'id_run': id_run, 'id_cd': id_cd,'is_nonphys':{'$exists':0}},
+                neus = list(db.neu_run.find({'id_mouse': id_mouse, 'id_run': id_run, 'id_cd': id_cd,'is_nonphys':{'$exists':0}},
                                              {'max': 1, 'min': 1}))
                 if len(neus)!=0:
                     ymax=max([x['max'] for x in neus])
                     ymin=min([x['min'] for x in neus])
                     _ids=[x['_id'] for x in neus]
-                    sf_ids(db.neu_run2,_ids,dict(dff_lims_cd=[ymin,ymax]))
+                    sf_ids(db.neu_run,_ids,dict(dff_lims_cd=[ymin,ymax]))
 
 def set_id_cd_for_all_neu_runs():
     id_mouse=5
@@ -603,7 +603,7 @@ def set_id_cd_for_all_neu_runs():
         for id_ses, id_neu in enumerate(neu_cd['id_neus']):
             if id_neu != 0:
                 id_neu -= 1
-                db.neu_run2.update_many(
+                db.neu_run.update_many(
                     {'id_mouse': id_mouse, 'id_ses': id_ses, 'id_neu': id_neu},
                     {'$set': {'id_cd': id_cd}})
 
@@ -617,7 +617,8 @@ config = get_config(db)
 #cd_pull_files()
 # find_cd_dff_lims()
 #plot_trace_loop(config.workdir+config.db_trace,db,2)
-cd_visdriven_on_last_baseline_wrapper(db)
+
+cd_between_conds_wrapper(db, 'mean','D:\\333_Galaxy Maotuan\\I love studying\\2022 winter\\lab\\suture-mice-python')
 
 end_time = time.time()
 print(datetime.now())

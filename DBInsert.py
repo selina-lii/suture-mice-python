@@ -153,7 +153,6 @@ def loop(db, config, save_refimg=False, save_dff=False, add_mice=False, add_sess
                                 run.properties.update(name_tag.properties)
 
                                 if type=='stim':
-                                    #TODO: fp_trialsmat to be tested
                                     fp_trialsmat='%s%s\\%s_%s_%s'%(config.workdir,config.trialsmatdir,name_mouse,name_ses,id_run)
 
                                     n_stim_ori_run = [0]*len(config.stim_labels) #TODO: kinda a logical loophole in our data..
