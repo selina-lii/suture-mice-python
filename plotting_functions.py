@@ -1,6 +1,6 @@
 import os.path
 import matplotlib.pyplot as plt
-from math import inf,sqrt
+from math import inf, sqrt
 from LyxTools import *
 import numpy as np
 from scipy.stats import sem
@@ -22,11 +22,7 @@ def average_response_spontaneous_wrapper(db):
 
 def average_response_spontaneous(db, ses):
     for run in db.run.find():
-<<<<<<< HEAD
         means = get_neu_runs(db, run, proj('mean'))
-=======
-        means=get_neu_runs(db,run,proj('mean'))
->>>>>>> 4adb87ad567640d6877a88d2516592957fa95246
         return np.mean(means)
 
     for mouse in db.mouse.find():
@@ -45,7 +41,6 @@ def average_response_spontaneous(db, ses):
                 if len(ids) != 0:
                     dff_run = dff[ids, run['start_ses']:run['end_ses']]
                     avgact_vd_neu_in_spont[i, id_mouse, j] = np.mean(dff_run)
-
     return avgact_vd_neu_in_spont
 
 
@@ -200,13 +195,8 @@ def cd_std_auc(mouse):
                 continue
 
             neus = list(
-<<<<<<< HEAD
                 db.neu_run.find({'_id_run': '%d%02d%d' % (mouse._id, id_ses, id_run), 'is_nonphys': {'$exists': 0}},
-                        projection))
-=======
-                db.neu_run2.find('_id_run': '%d%02d%d' % (mouse._id, id_ses, id_run), 'is_nonphys': {'$exists': 0}},
-                                 projection))
->>>>>>> 4adb87ad567640d6877a88d2516592957fa95246
+                                projection))
             for s, stat in enumerate(stats):
                 stat_vals = [x[stat] for x in neus]
             stats_mean[s, id_ses] = np.mean(stat_vals)
@@ -307,39 +297,19 @@ def cd_visdriven_on_last_baseline(db, mouse, stat, outdir):
 
     for i_run, id_run in enumerate(id_runs):
         print('run%d' % id_run)
-<<<<<<< HEAD
         vd_neus = get_neu_runs(db, mouse._id, id_ses, id_run + 1, also=dict(is_visdriven=True),
                                fields='id_cd')  # TODO +1: oops this is hard coding..
         cd_stats = get_cd_stats(db, mouse, id_run, stat, neu_to_cd(vd_neus))
-=======
-        vd_neus = get_neu_runs(db, mouse._id, id_ses, id_run + 1,also=dict(is_visdriven=True),fields='id_cd') #TODO +1: oops this is hard coding..
-        cd_stats=get_cd_stats(db, mouse, id_run, stat, neu_to_cd(vd_neus))
->>>>>>> 4adb87ad567640d6877a88d2516592957fa95246
         mean, err, _ = meanerr(cd_stats)
         title = '%s run %d crossday %s (subselect vis driven neurons on the last baseline day)' % (
             mouse.name, id_run, stat)
         filename = '%s\\%d%d_cd_%s.jpg' % (outdir, id_run, mouse._id, stat)
         cd_plot_line(mouse, title, filename, data=cd_stats, mean=mean, err=err)
 
-<<<<<<< HEAD
-def cd_between_conds_wrapper(db,stat_name,outdir):
-    mouse_loop(db,cd_between_conds,cd=True,stat_name=stat_name,outdir=outdir)
-=======
-def converter(**kwargs):
-    l = list(kwargs.values())
-    if len(kwargs)==1:
-        l=list(kwargs.values())[0]
-        if len(l)==3:
 
-    else:
-        print(1)
+def cd_between_conds_wrapper(db, stat_name, outdir):
+    mouse_loop(db, cd_between_conds, cd=True, stat_name=stat_name, outdir=outdir)
 
-
-def cd_mean_between_conds(db,mouse,stat,outdir):
-    ids_cd = load_ids_cd(mouse)
-    if ids_cd is None:
-        return
->>>>>>> 4adb87ad567640d6877a88d2516592957fa95246
 
 def cd_between_conds(db, mouse, id_run, stat_name, outdir):
     ses_queries = [dict(cond_code='B', hour={'$gt': 24}),
@@ -353,32 +323,34 @@ def cd_between_conds(db, mouse, id_run, stat_name, outdir):
         find_query.update(ses_q)
         id_sess.append([x['id_ses'] for x in db.session.find(find_query, {'id_ses': 1})])
 
-    cond_pairs=[]
+    cond_pairs = []
     cond_pairs.append([0, 1])
     cond_pairs.append([0, 2])
 
-    for c,cond_pair in enumerate(cond_pairs):
+    for c, cond_pair in enumerate(cond_pairs):
         c1 = cond_pair[0]
         c2 = cond_pair[1]
         group = id_sess[c1] + id_sess[c2]
         ids_cd = [x['id_cdneu'] for x in
-                   list(db.neu_cd.find(dict(id_mouse=mouse._id, id_sess={'$all': group}), proj('id_cdneu')))]
-        stat_vals = np.zeros([2,len(ids_cd)])
-        for i,id_cd in enumerate(ids_cd):
+                  list(db.neu_cd.find(dict(id_mouse=mouse._id, id_sess={'$all': group}), proj('id_cdneu')))]
+        stat_vals = np.zeros([2, len(ids_cd)])
+        for i, id_cd in enumerate(ids_cd):
             s1 = np.mean([x[stat_name] for x in
-                    list(db.neu_run.find(dict(id_mouse=mouse._id, id_ses={'$in': id_sess[c1]}, id_run=id_run, id_cd=id_cd,is_nonphys={'$exists': 0}),proj(stat_name)))])
+                          list(db.neu_run.find(
+                              dict(id_mouse=mouse._id, id_ses={'$in': id_sess[c1]}, id_run=id_run, id_cd=id_cd,
+                                   is_nonphys={'$exists': 0}), proj(stat_name)))])
             s2 = np.mean([x[stat_name] for x in
-                    list(db.neu_run.find(dict(id_mouse=mouse._id, id_ses={'$in': id_sess[c2]}, id_run=id_run, id_cd=id_cd,is_nonphys={'$exists': 0}),proj(stat_name)))])
-            stat_vals[:,i]=[s1,s2]
+                          list(db.neu_run.find(
+                              dict(id_mouse=mouse._id, id_ses={'$in': id_sess[c2]}, id_run=id_run, id_cd=id_cd,
+                                   is_nonphys={'$exists': 0}), proj(stat_name)))])
+            stat_vals[:, i] = [s1, s2]
         title = '%s run %d crossday %s (comparison between two conditions)' % (
             mouse.name, id_run, stat_name)
-        filename = '%s\\%d%d(%d)_cd_%s_bar.jpg' % (outdir, id_run, mouse._id, c,stat_name)
-        cd_plot_bar(title, filename, [labels[c1],labels[c2]],data=stat_vals, alpha_data=0.5)
+        filename = '%s\\%d%d(%d)_cd_%s_bar.jpg' % (outdir, id_run, mouse._id, c, stat_name)
+        cd_plot_bar(title, filename, [labels[c1], labels[c2]], data=stat_vals, alpha_data=0.5)
 
 
-<<<<<<< HEAD
-
-def tmp(mouse,id_sess,id_run,stat,outdir,db):
+def tmp(mouse, id_sess, id_run, stat, outdir, db):
     for cd_neu in mouse.neu_cd.find(dict(id_mouse=mouse._id, id_ses={'$in': id_sess})):
         vd_neus = get_neu_runs(db, mouse._id, id_sess, id_run + 1,
                                proj('id_cd'))  # TODO +1: oops this is hard coding..
@@ -403,33 +375,6 @@ def get_neu_runs(db, id_mouse=None, id_ses=None, id_run=None, also=None, fields=
         return list(db.neu_run.find(find_query, fields))
     return -1
 
-=======
-    id_runs=mouse.run_id_spont
-    for i_run, id_run in enumerate(id_runs):
-        print('run%d' % id_run)
-        for cd_neu in mouse.neu_cd.find(dict(id_mouse=mouse._id,id_ses={'$in':id_sess})):
-            vd_neus = get_neu_runs(db, mouse._id, id_sess, id_run + 1,proj('id_cd')) #TODO +1: oops this is hard coding..
-            cd_stats=get_cd_stats(db, mouse, id_run, stat, neu_to_cd(vd_neus))
-            mean, err, _ = meanerr(cd_stats)
-            title = '%s run %d crossday %s (subselect vis driven neurons on the last baseline day)' % (
-                    mouse.name, id_run, stat)
-            filename = '%s\\%d%d_cd_%s.jpg' % (outdir,id_run, mouse._id,stat)
-        cd_plot_bar(title, filename, data=cd_stats, mean=mean, err=err)
-
-
-#pick neu-runs
-def get_neu_runs(db, id_mouse=None, id_ses=None, id_run=None, also=None,fields=None):
-    
-    if type(id_ses) is list:
-        id_ses = {'$in': id_ses}
-    find_query=dict(is_nonphys={'$exists':False}, id_mouse=id_mouse, id_ses=id_ses, id_run=id_run)
-    find_query.update(also)
-    
-    if isinstance(fields,string):
-        return [x[field] for x in list(db.neu_run2.find(dict(_id_run=run._id), proj(fields,_id=False)))]
-    elif isinstance(fields,dict):
-        return list(db.neu_run2.find(find_query, fields))
->>>>>>> 4adb87ad567640d6877a88d2516592957fa95246
 
 # bridges within database
 '''neu->neu_cd'''
@@ -524,14 +469,14 @@ def cd_plot_line(mouse, title, filename, data=None, mean=None, err=None, legend=
     savePlot(ax, filename)
 
 
-def cd_plot_bar(title, filename, bar_labels,data=None, alpha_data=0.3):
-    mean=np.nanmean(data,axis=1)
-    err = np.nanstd(data, axis=1)/sqrt(data.shape[1])
+def cd_plot_bar(title, filename, bar_labels, data=None, alpha_data=0.3):
+    mean = np.nanmean(data, axis=1)
+    err = np.nanstd(data, axis=1) / sqrt(data.shape[1])
 
-    plt.figure(figsize=(len(mean)*6, 10))
+    plt.figure(figsize=(len(mean) * 6, 10))
     ax = plt.gca()
     ax.plot(data, alpha=alpha_data, marker='o')
-    ax.bar(bar_labels, mean,yerr=err)
+    ax.bar(bar_labels, mean, yerr=err)
 
     plt.tight_layout()
     plt.title(title, fontsize=25)
@@ -633,25 +578,16 @@ def get_cond_name(cond_code):
     else:
         NameError('invalid condition code')
 
-<<<<<<< HEAD
     # projections
 
 
 def proj(fields, _id=True, reverse=False):
     p = dict()
-    if isinstance(fields,str):
-        p[fields]=1
+    if isinstance(fields, str):
+        p[fields] = 1
     else:
         for fn in fields:
             p[fn] = 1
-=======
-    #projections
-    
-def proj(fields, _id=True, reverse=False):
-    p = dict()
-    for fn in fields:
-        p[fn] = 1
->>>>>>> 4adb87ad567640d6877a88d2516592957fa95246
     if not _id:
         p['_id'] = 0
     if reverse:
@@ -661,7 +597,6 @@ def proj(fields, _id=True, reverse=False):
 
 
 def n_visdriven(db):
-<<<<<<< HEAD
     n_vd_neu = np.zeros([2, 7, 30], dtype=int)
     for mouse in db.mouse.find():
         id_mouse = mouse['_id']
@@ -683,34 +618,11 @@ def n_visdriven(db):
                 tt = "# visually driven neurons - %s run%d" % (mouse_name, id_run)
                 fn = '%s_run%d_nvdn.jpg' % (mouse_name, id_run)
                 plot_mouse_stat(d, n, tt, names, fn)
-=======
-    n_vd_neu=np.zeros([2,7,30],dtype=int)
-    for mouse in db.mouse.find():
-        id_mouse = mouse['_id']
-        for ses in db.session.find({'id_mouse':id_mouse},{'run_id_stim':1,'id_ses':1}):
-            for i,id_run in enumerate(ses['run_id_stim']):
-                n_vd_neu[i,id_mouse,ses['id_ses']]=len(list(db.neuron.find({'id_ses':ses['_id'],'is_visdriven_%d'%id_run:True},{'is_visdriven_%d':1})))
-
-    for i,_ in enumerate(n_vd_neu):
-        for j,each in enumerate(_):
-            mouse=fd_id(db.mouse,j)
-            if mouse is not None and len(mouse['run_id_stim'])>i:
-                mouse_name = mouse['name']
-                id_run = mouse['run_id_stim'][i]
-
-                n=mouse['n_sess']
-                names=mouse['name_sess']
-                d=each[:n]
-                tt="# visually driven neurons - %s run%d" % (mouse_name, id_run)
-                fn='%s_run%d_nvdn.jpg' % (mouse_name, id_run)
-                plot_mouse_stat(d,n,tt,names,fn)
->>>>>>> 4adb87ad567640d6877a88d2516592957fa95246
     return n_vd_neu
 
 
 def crossday_imshow():
     for mouse in db.mouse.find():
-<<<<<<< HEAD
         id_mouse = mouse['_id']
         fp_crossday = config.workdir + config.crossdaydir + '\\' + mouse['name'] + '.mat'
         ids_cd = load_ids_cd(mouse)
@@ -725,30 +637,10 @@ def crossday_imshow():
         for ax in axs.flatten():
             ax.set_visible(False)
         for ax, slice in zip(axs.flatten(), np.array_split((ids_cd > 0) * 1, n)):
-=======
-        id_mouse=mouse['_id']
-        fp_crossday=config.workdir+config.crossdaydir+'\\'+mouse['name']+'.mat'
-        ids_cd=load_ids_cd(mouse)
-        if ids_cd is None:
-            continue
-        plt.clf()
-        n=ids_cd.shape[0]//100+1
-        nx=20
-        ny=n//nx+1
-        fig, axs = plt.subplots(ny,nx,figsize=(nx*ids_cd.shape[1]//12, ny*6))
-        fig.suptitle('Horizontally stacked subplots')
-        for ax in axs.flatten():
-            ax.set_visible(False)
-        for ax,slice in zip(axs.flatten(),np.array_split((ids_cd>0)*1,n)):
->>>>>>> 4adb87ad567640d6877a88d2516592957fa95246
             ax.imshow(slice)
             ax.set_visible(True)
             ax.xaxis.set_visible(False)
             ax.yaxis.set_visible(False)
         fig.suptitle('%s crossday cell consistency' % (mouse['name']))
         plt.tight_layout()
-<<<<<<< HEAD
         savePlot_fig(fig, 'cd check_%d.jpg' % id_mouse)
-=======
-        savePlot_fig(fig, 'cd check_%d.jpg'%id_mouse)
->>>>>>> 4adb87ad567640d6877a88d2516592957fa95246
