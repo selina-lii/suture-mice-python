@@ -644,3 +644,40 @@ def crossday_imshow():
         fig.suptitle('%s crossday cell consistency' % (mouse['name']))
         plt.tight_layout()
         savePlot_fig(fig, 'cd check_%d.jpg' % id_mouse)
+
+
+#start pack PCA:
+#spectral analysis (freq)
+#plot onto ref img
+#prediction of time series
+
+
+
+############################################# video! ########################
+def plotCrossday():
+    statName=plottype.name
+    framerate=plottype.framerate
+    compressionRatio=plottype.compressionRatio
+    ses=
+
+    img_example=cv2.imread(plotFolder+'\\Sut4_00_B005_191117_ses1_'+statName+'\\Sut4_00_B005_191117_ses1_#0_'+statName+'.jpg')
+    w=img_example.shape[1]//compressionRatio
+    h=img_example.shape[0]//compressionRatio
+    blankscreen=np.zeros((w, h, 3), dtype = "uint8")
+    blankscreen.fill(255)
+
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+
+    mouse='T01'
+    folders=glob.glob(plotFolder + '\\' + mouse + '*ses0*' + statName)
+    for cd_i,reorder in enumerate(acrossdayidxs[0:100]):
+        out = cv2.VideoWriter(crossdayFolder+'\\'+str(cd_i)+'.mp4',fourcc,framerate,[w,h])
+        for i, f in zip(reorder, folders):
+            if i==-1:
+                img = blankscreen
+            else:
+                flast = f.split('\\')[-1].rsplit('_', 1)[0]
+                img = cv2.imread(f + '\\' + flast + '_#' + str(i) + '_'+statName+'.jpg')
+            img=cv2.resize(img,size)
+            out.write(img)
+        out.release()
