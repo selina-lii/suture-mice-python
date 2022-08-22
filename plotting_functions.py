@@ -270,6 +270,7 @@ def crossday_mean_acitivty_subselect_all_conds():
         cd_plot_line(mouse, title, filename, mean=mean, err=err)
 
 
+
 def crossday_meanact_wrapper(db):
     mouse_loop(db, crossday_meanact, cd=True, outdir=db.config.find_one()['_testpath'])
 
@@ -335,13 +336,9 @@ def cd_between_conds(db, mouse, id_run, stat_name, outdir):
                   list(db.neu_cd.find(dict(id_mouse=mouse._id, id_sess={'$all': group}), proj('id_cdneu')))]
         stat_vals = np.zeros([2, len(ids_cd)])
         for i, id_cd in enumerate(ids_cd):
-            s1 = np.mean([x[stat_name] for x in
-                          list(db.neu_run.find(
-                              dict(id_mouse=mouse._id, id_ses={'$in': id_sess[c1]}, id_run=id_run, id_cd=id_cd,
+            s1 = np.mean([x[stat_name] for x in list(db.neu_run.find(dict(id_mouse=mouse._id, id_ses={'$in': id_sess[c1]}, id_run=id_run, id_cd=id_cd,
                                    is_nonphys={'$exists': 0}), proj(stat_name)))])
-            s2 = np.mean([x[stat_name] for x in
-                          list(db.neu_run.find(
-                              dict(id_mouse=mouse._id, id_ses={'$in': id_sess[c2]}, id_run=id_run, id_cd=id_cd,
+            s2 = np.mean([x[stat_name] for x in list(db.neu_run.find(dict(id_mouse=mouse._id, id_ses={'$in': id_sess[c2]}, id_run=id_run, id_cd=id_cd,
                                    is_nonphys={'$exists': 0}), proj(stat_name)))])
             stat_vals[:, i] = [s1, s2]
         title = '%s run %d crossday %s (comparison between two conditions)' % (
@@ -362,18 +359,62 @@ def tmp(mouse, id_sess, id_run, stat, outdir, db):
     cd_plot_bar(title, filename, data=cd_stats, mean=mean, err=err)
 
 
+def cd_meanact_subselect_spontaneously_active_on_baseline_wrapper(db,outdir):
+    mouse_loop(db, cd_meanact_subselect_spontaneously_active_on_baseline, cd=True, outdir=outdir)
+
+#1. add in unsuture neurons
+#2. bootstrap by selecting equal amount of random cd neurons
+def cd_meanact_subselect_spontaneously_active_on_baseline(db, mouse, id_run, outdir):
+    outdir_meanerr=outdir+'-meanerr'
+    print('run%d' % id_run)
+    neus=[]
+    stat_name='mean'
+    for id_ses in range(mouse.cond_poles[0]-1):
+        thres=db.run.find_one(dict(id_mouse=mouse._id,id_ses=id_ses,id_run=id_run),dict(mp1std=1))['mp1std']
+        neus=neus+get_neu_runs(db, id_mouse=mouse._id, id_ses=id_ses, id_run=id_run, also=dict(id_cd={'$exists':1},mean={'$gt':thres}),
+                           fields='id_cd')
+    stats_val = get_cd_stats(db, mouse, id_run, stat_name, neus)
+    mean, err, _ = meanerr(stats_val)
+    title = '%s run %d crossday %s (subselect neurons that had been spontaneously active on baseline)' % (
+        mouse.name, id_run, stat_name)
+    filename = '%s\\%d%d_cd_%s_spontactive.jpg' % (outdir, id_run, mouse._id, stat_name)
+    cd_plot_line(mouse, title, filename, data=stats_val, mean=mean, err=err,alpha_data=0.3)
+    filename = '%s\\%d%d_cd_%s_spontactive.jpg' % (outdir_meanerr, id_run, mouse._id, stat_name)
+    cd_plot_line(mouse, title, filename, mean=mean, err=err)
+
 # pick neu-runs
-def get_neu_runs(db, id_mouse=None, id_ses=None, id_run=None, also=None, fields=None):
+def get_neu_runs(db, id_mouse=None, id_ses=None, id_run=None, _id_run=None, _id_ses=None, also=None, fields=None):
     if type(id_ses) is list:
         id_ses = {'$in': id_ses}
-    find_query = dict(is_nonphys={'$exists': False}, id_mouse=id_mouse, id_ses=id_ses, id_run=id_run)
-    find_query.update(also)
+
+    if isinstance(fields, list):
+        fields=proj(fields)
+
+    find_query = dict(is_nonphys={'$exists': False})
+
+    if id_mouse is not None:
+        find_query['id_mouse']=id_mouse
+    if id_ses is not None:
+        find_query['id_ses'] = id_ses
+    if id_run is not None:
+        find_query['id_run'] = id_run
+    if _id_run is not None:
+        find_query['_id_run'] = _id_run
+    if _id_ses is not None:
+        find_query['_id_run'] = _id_ses
+    if also is not None:
+        find_query.update(also)
 
     if isinstance(fields, str):
-        return [x[fields] for x in list(db.neu_run.find(dict(id_run=id_run), proj(fields, _id=False)))]
+        return [x[fields] for x in list(db.neu_run.find(find_query, proj(fields, _id=False)))]
     elif isinstance(fields, dict):
-        return list(db.neu_run.find(find_query, fields))
-    return -1
+        neus = list(db.neu_run.find(find_query, proj(fields)))
+        returns=[]
+        for f in fields:
+            returns.append([x[f] for x in neus])
+        return returns
+    else:
+        return -1
 
 
 # bridges within database
@@ -401,7 +442,7 @@ def get_cd_stats(db, mouse, id_run, stat, ids_selected=None, sess_selected=None)
     findquery = dict(id_mouse=mouse._id, id_run=id_run, is_nonphys={'$exists': 0})
     if sess_selected is not None:
         findquery['id_ses'] = {'$in': sess_selected}
-    projection = proj(['id_ses', stat], inc__id=False)
+    projection = proj(['id_ses', stat], _id=False)
 
     if ids_selected is None:
         ids_selected = list(range(n_neu_cd))
@@ -454,18 +495,24 @@ def cd_plot_line(mouse, title, filename, data=None, mean=None, err=None, legend=
     plt.figure(figsize=(1.25 * mouse.n_sess, 15))
     ax = plt.gca()
 
-    if mean is not None:
-        plot_meanerr(ax, mean, err)
     if legend is not None:
         plt.legend(legend, fontsize=8)
     if data is not None:
+        if mouse._id == 0:
+            data[4,:] = np.nan
         plt.plot(data, alpha=alpha_data)
+    if mean is not None:
+        if mouse._id == 0:
+            mean[4] = np.nan
+        plot_meanerr(ax, mean, err)
     if show_cond_lines:
         plot_cond_poles(ax, mouse, fontsize=20)
 
-    set_xticks_sess_names(ax, mouse)
-    ax.tight_layout()
-    ax.title(title, fontsize=40)
+
+
+    set_xticks_sess_names(ax, mouse,fontsize=15)
+    plt.tight_layout()
+    plt.title(title, fontsize=25)
     savePlot(ax, filename)
 
 
@@ -501,12 +548,12 @@ def set_xticks_sess_names(ax, mouse, fontsize):
     return ax
 
 
-def plot_cond_poles(ax, mouse):
+def plot_cond_poles(ax, mouse,fontsize):
     cond_poles = [x for x in mouse.cond_poles]
     cond_poles.insert(0, 0)
     for x, label in zip(cond_poles, mouse.conds):
         ax.axvline(x=x, label=label, color='r', linestyle='--')
-        ax.text(x - 0.3, ax.get_ylim()[1] * 0.95, get_cond_name(label), fontsize=40)
+        ax.text(x - 0.3, ax.get_ylim()[1] * 0.95, get_cond_name(label), fontsize=fontsize)
     return ax
 
 
@@ -658,7 +705,7 @@ def plotCrossday():
     statName=plottype.name
     framerate=plottype.framerate
     compressionRatio=plottype.compressionRatio
-    ses=
+    #ses=
 
     img_example=cv2.imread(plotFolder+'\\Sut4_00_B005_191117_ses1_'+statName+'\\Sut4_00_B005_191117_ses1_#0_'+statName+'.jpg')
     w=img_example.shape[1]//compressionRatio

@@ -536,11 +536,11 @@ def mark_nonphysiological_neurons():
     thres_u = [0.5, 100, inf, 10, 500, 10]
     thres_l = [0, -5, -10, -inf, -inf, -inf]
     stats = ['mean', 'max', 'min', 'std', 'kurt', 'rms']
-    for neu in db.neu_run_spont.find({}, {'mean': 1, 'std': 1, 'min': 1, 'max': 1, 'rms': 1, 'kurt': 1}):
+    for neu in db.neu_run.find({}, {'mean': 1, 'std': 1, 'min': 1, 'max': 1, 'rms': 1, 'kurt': 1}):
         for stat, out_u, out_l in zip(stats, thres_u, thres_l):
             x = neu[stat]
             if x < out_l or x > out_u:
-                sf_id(db.neu_run_spont, neu['_id'], 'is_nonphys', True)
+                sf_id(db.neu_run, neu['_id'], dict(is_nonphys=True))
 
 
 def add_auc():
@@ -607,6 +607,7 @@ def set_id_cd_for_all_neu_runs():
                     {'id_mouse': id_mouse, 'id_ses': id_ses, 'id_neu': id_neu},
                     {'$set': {'id_cd': id_cd}})
 
+
 start_time = time.time()
 print(datetime.now())
 
@@ -618,7 +619,11 @@ config = get_config(db)
 # find_cd_dff_lims()
 #plot_trace_loop(config.workdir+config.db_trace,db,2)
 
-cd_between_conds_wrapper(db, 'mean','D:\\333_Galaxy Maotuan\\I love studying\\2022 winter\\lab\\suture-mice-python')
+#cd_between_conds_wrapper(db, 'mean','D:\\333_Galaxy Maotuan\\I love studying\\2022 winter\\lab\\suture-mice-python')
+#mark_nonphysiological_neurons()
+outdir="C:\\Users\\selinali\\lab\\sut\\2022-7-22-plots\\line plots\\0822_crossday neurons that had been spontaneously active on baseline"
+cd_meanact_subselect_spontaneously_active_on_baseline_wrapper(db,outdir)
+
 
 end_time = time.time()
 print(datetime.now())

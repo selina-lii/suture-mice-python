@@ -621,7 +621,6 @@ def cd_select(thresholds,stats,):
 
 
 def plot_crossday():
-
     for mouse in db.mouse.find():
         print(mouse['name'])
         id_mouse=mouse['_id']
@@ -667,5 +666,7 @@ def plot_crossday():
                 savePlot(fig, '%s\\cd %s run %d mouse %d.jpg'%(stat,stat,id_run,id_mouse))
 
 
-
-
+def tmp():
+    for run in db.run.find():
+        m = get_neu_runs(db, _id_run=run['_id'], fields='mean')
+        sf_id(db.run, run['_id'], dict(mp1std=np.mean(m) + np.std(m)))
