@@ -621,7 +621,7 @@ config = get_config(db)
 
 #cd_between_conds_wrapper(db, 'mean','D:\\333_Galaxy Maotuan\\I love studying\\2022 winter\\lab\\suture-mice-python')
 #mark_nonphysiological_neurons()
-outdir="C:\\Users\\selinali\\lab\\sut\\2022-7-22-plots\\line plots\\0822_crossday neurons that had been spontaneously active on baseline"
+outdir="D:\\333_Galaxy Maotuan\\I love studying\\2022 winter\\lab\\08-22 new\\plots-0823-mean activity spontaneously active on baseline-bootstrap\\mean activity spontaneously active on baseline"
 cd_meanact_subselect_spontaneously_active_on_baseline_wrapper(db,outdir)
 
 

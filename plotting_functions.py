@@ -346,19 +346,6 @@ def cd_between_conds(db, mouse, id_run, stat_name, outdir):
         filename = '%s\\%d%d(%d)_cd_%s_bar.jpg' % (outdir, id_run, mouse._id, c, stat_name)
         cd_plot_bar(title, filename, [labels[c1], labels[c2]], data=stat_vals, alpha_data=0.5)
 
-
-def tmp(mouse, id_sess, id_run, stat, outdir, db):
-    for cd_neu in mouse.neu_cd.find(dict(id_mouse=mouse._id, id_ses={'$in': id_sess})):
-        vd_neus = get_neu_runs(db, mouse._id, id_sess, id_run + 1,
-                               proj('id_cd'))  # TODO +1: oops this is hard coding..
-        cd_stats = get_cd_stats(db, mouse, id_run, stat, neu_to_cd(vd_neus))
-        mean, err, _ = meanerr(cd_stats)
-        title = '%s run %d crossday %s (subselect vis driven neurons on the last baseline day)' % (
-            mouse.name, id_run, stat)
-        filename = '%s\\%d%d_cd_%s.jpg' % (outdir, id_run, mouse._id, stat)
-    cd_plot_bar(title, filename, data=cd_stats, mean=mean, err=err)
-
-
 def cd_meanact_subselect_spontaneously_active_on_baseline_wrapper(db,outdir):
     mouse_loop(db, cd_meanact_subselect_spontaneously_active_on_baseline, cd=True, outdir=outdir)
 
@@ -367,20 +354,40 @@ def cd_meanact_subselect_spontaneously_active_on_baseline_wrapper(db,outdir):
 def cd_meanact_subselect_spontaneously_active_on_baseline(db, mouse, id_run, outdir):
     outdir_meanerr=outdir+'-meanerr'
     print('run%d' % id_run)
-    neus=[]
+    cd_neus=[]
     stat_name='mean'
     for id_ses in range(mouse.cond_poles[0]-1):
         thres=db.run.find_one(dict(id_mouse=mouse._id,id_ses=id_ses,id_run=id_run),dict(mp1std=1))['mp1std']
-        neus=neus+get_neu_runs(db, id_mouse=mouse._id, id_ses=id_ses, id_run=id_run, also=dict(id_cd={'$exists':1},mean={'$gt':thres}),
+        cd_neus=cd_neus+get_neu_runs(db, id_mouse=mouse._id, id_ses=id_ses, id_run=id_run, also=dict(id_cd={'$exists':1},mean={'$gt':thres}),
                            fields='id_cd')
-    stats_val = get_cd_stats(db, mouse, id_run, stat_name, neus)
+    stats_val = get_cd_stats(db, mouse, id_run, stat_name, cd_neus)
+    draw=100
     mean, err, _ = meanerr(stats_val)
+    #legend=['real']
+    means=np.zeros([draw,mouse.n_sess])
+    #errs=np.zeros([draw,mouse.n_sess])
+    for i in range(draw):
+        means[i] = cd_bootstrap(db, mouse, id_run, stat_name,  n_neus=stats_val.shape[1])
+        #legend.append('random%d'%i)
+    sig_levels=np.mean(means,axis=0)
+
     title = '%s run %d crossday %s (subselect neurons that had been spontaneously active on baseline)' % (
         mouse.name, id_run, stat_name)
-    filename = '%s\\%d%d_cd_%s_spontactive.jpg' % (outdir, id_run, mouse._id, stat_name)
-    cd_plot_line(mouse, title, filename, data=stats_val, mean=mean, err=err,alpha_data=0.3)
+    #filename = '%s\\%d%d_cd_%s_spontactive.jpg' % (outdir, id_run, mouse._id, stat_name)
+    #cd_plot_line(mouse, title, filename, data=stats_val, mean=mean, err=err,alpha_data=0.3)
     filename = '%s\\%d%d_cd_%s_spontactive.jpg' % (outdir_meanerr, id_run, mouse._id, stat_name)
-    cd_plot_line(mouse, title, filename, mean=mean, err=err)
+    cd_plot_line(mouse, title, filename, mean=mean, err=err,sig_levels=sig_levels)
+
+def cd_bootstrap(db, mouse, id_run, stat_name, n_neus, err=False): # draw=100
+    cd_neus=[x['id_cdneu'] for x in list(db.neu_cd.aggregate([{'$match': dict(id_mouse=mouse._id)},
+                                                           {'$project':dict(id_cdneu=1,_id=0)},
+                                                        {'$sample': {'size': n_neus}}  ]))]
+    stats_val = get_cd_stats(db, mouse, id_run, stat_name, cd_neus)
+    if err:
+        return meanerr(stats_val)
+    else:
+        return np.nanmean(stats_val, axis=1)
+
 
 # pick neu-runs
 def get_neu_runs(db, id_mouse=None, id_ses=None, id_run=None, _id_run=None, _id_ses=None, also=None, fields=None):
@@ -436,16 +443,18 @@ def neu_to_cd(neus_selected):
 
 
 def get_cd_stats(db, mouse, id_run, stat, ids_selected=None, sess_selected=None):
-    n_neu_cd = mouse.nneu_cd if ids_selected is None else len(ids_selected)
-    stats = np.empty([mouse.n_sess, n_neu_cd], dtype=float)
-    stats[:] = np.nan
+
     findquery = dict(id_mouse=mouse._id, id_run=id_run, is_nonphys={'$exists': 0})
     if sess_selected is not None:
         findquery['id_ses'] = {'$in': sess_selected}
     projection = proj(['id_ses', stat], _id=False)
 
     if ids_selected is None:
-        ids_selected = list(range(n_neu_cd))
+        ids_selected = list(range(mouse.nneu_cd))
+    else:
+        ids_selected=np.unique(ids_selected).tolist()
+    stats = np.empty([mouse.n_sess, len(ids_selected)], dtype=float)
+    stats[:] = np.nan
 
     for i, id_cd in enumerate(ids_selected):
         findquery['id_cd'] = id_cd
@@ -490,13 +499,11 @@ def run_loop(db, func, mouse, **kwargs):
 
 # plottings
 # TODO the name 'show_all' is really bad
-def cd_plot_line(mouse, title, filename, data=None, mean=None, err=None, legend=None, show_cond_lines=True,
+def cd_plot_line(mouse, title, filename, data=None, mean=None, err=None, sig_levels=None, legend=None, show_cond_lines=True,
                  alpha_data=0.5):
     plt.figure(figsize=(1.25 * mouse.n_sess, 15))
     ax = plt.gca()
 
-    if legend is not None:
-        plt.legend(legend, fontsize=8)
     if data is not None:
         if mouse._id == 0:
             data[4,:] = np.nan
@@ -504,6 +511,14 @@ def cd_plot_line(mouse, title, filename, data=None, mean=None, err=None, legend=
     if mean is not None:
         if mouse._id == 0:
             mean[4] = np.nan
+            err[4]=np.nan
+        plot_meanerr(ax, mean, err)
+    if legend is not None:
+        plt.legend(legend, fontsize=8)
+    if sig_levels is not None:
+        if mouse._id == 0:
+            sig_levels[4] = np.nan
+        plt.plot(sig_levels, color="0.5", alpha=1, linewidth=3, linestyle='--')
         plot_meanerr(ax, mean, err)
     if show_cond_lines:
         plot_cond_poles(ax, mouse, fontsize=20)
@@ -566,7 +581,7 @@ def plot_meanerr(ax, mean, err=None):
     else:
         if err is not None:
             for m, e in zip(mean, err):
-                l = ax.plot(mean, color='b', linewidth=2)[0]
+                l = ax.plot(m, linewidth=2)[0]
                 ax.fill_between(l.get_xdata(), m - e, m + e, color=l.get_color(),
                                 alpha=0.4, edgecolor='none')
         else:
