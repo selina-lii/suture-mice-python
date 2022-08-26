@@ -643,12 +643,14 @@ cd_meanact_subselect_spontaneously_active_on_baseline_wrapper(db, outdir)
 
 dirr = "D:\\333_Galaxy Maotuan\\I love studying\\2022 winter\\lab\\suture-mice-python"
 
-l=6699
-nfft=nextpow2(l)
-dffs=loadmat(dirr+'\\t.mat')['dFF'][:,:l]
+dffs=loadmat(dirr+'\\T01_B72_210205_dff.mat')['dFF'][:,42000:]
+'''nfft=nextpow2(l)
 for f,d in enumerate(dffs):
     print(f)
-    test_periodogram(d,dirr+'\\%d.jpg'%f,nfft)
+    test_periodogram(d,dirr+'\\%d.jpg'%f,nfft)'''
+
+test_pca(dffs,dirr+'\\pca_1')
+
 
 end_time = time.time()
 print(datetime.now())

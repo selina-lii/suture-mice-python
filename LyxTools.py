@@ -5,7 +5,7 @@ import pymongo
 import os
 import mat73
 import scipy.io
-
+import sklearn.decomposition
 
 
 def loadmat(filename):
@@ -172,76 +172,4 @@ def mkdir(fp):
         os.mkdir(fp)
 
 
-
-import spectrum
-import pylab
-
-def test_spectrum(d,f):
-    plt.clf()
-    norm = True
-    sides = 'centerdc'
-
-    # MA method
-    p = spectrum.pma(d, 15, 30, NFFT=4096)
-    p.plot(label='MA (15, 30)', norm=norm, sides=sides)
-
-    # ARMA method
-    p = spectrum.parma(d, 15, 15, 30, NFFT=4096)
-    p.plot(label='ARMA(15,15)', norm=norm, sides=sides)
-
-    # yulewalker
-    p = spectrum.pyule(d, 15, norm='biased', NFFT=4096)
-    p.plot(label='YuleWalker(15)', norm=norm, sides=sides)
-
-    #burg method
-    p = spectrum.pburg(d, order=15, NFFT=4096)
-    p.plot(label='Burg(15)', norm=norm, sides=sides)
-
-    #covar method
-    p = spectrum.pcovar(d, 15, NFFT=4096)
-    p.plot(label='Covar(15)', norm=norm, sides=sides)
-
-    #modcovar method
-    p = spectrum.pmodcovar(d, 15, NFFT=4096)
-    p.plot(label='Modcovar(15)', norm=norm, sides=sides)
-
-    # correlagram
-    p = spectrum.pcorrelogram(d, lag=15, NFFT=4096)
-    p.plot(label='Correlogram(15)', norm=norm, sides=sides)
-
-    #minvar
-    p = spectrum.pminvar(d, 15, NFFT=4096)
-    p.plot(label='minvar (15)', norm=norm, sides=sides)
-
-    #music
-    p = spectrum.pmusic(d, 15, 11, NFFT=4096)
-    p.plot(label='music (15, 11)', norm=norm, sides=sides)
-
-    #ev
-    p = spectrum.pev(d, 15, 11, NFFT=4096)
-    p.plot(label='ev (15, 11)', norm=norm, sides=sides)
-
-    legend(prop={'size':10}, ncol=2)
-    pylab.ylim([-150, 100])
-
-    p.plot(filename=f)
-
-
-
-def nextpow2(i):
-    n = 1
-    while n < i:
-        n *= 2
-    return n
-
-
-
-def test_periodogram(d,f,nfft):
-    plt.clf()
-    s = spectrum.FourierSpectrum(d, lag=32, sampling=16, NFFT=nfft)
-    s.periodogram()
-    s.plot(label='periodogram')
-    from pylab import legend, xlim
-    pylab.legend()
-    s.plot(filename=f)
 

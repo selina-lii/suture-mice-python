@@ -63,7 +63,7 @@ def plot_trialsmat_loop(db, config, id_mouse_sel=None):
             dff_r = dff_all[:, run['start_ses']:run['end_ses']]
             for id_neu, dff in enumerate(dff_r):
                 _id_neu = '%s%04d' % (_id_run, id_neu)
-                plotTrialsMat(dff, grid, fpout, _id_neu, asp, pad)
+                plot_trialsMat(dff, grid, fpout, _id_neu, asp, pad)
 
 
 def tm(dff, grid):
@@ -73,7 +73,7 @@ def tm(dff, grid):
     return trialsmat
 
 
-def plotTrialsMat(dff, grid, folder, _id_neu, cb_asp, cb_pad):
+def plot_trialsMat(dff, grid, folder, _id_neu, cb_asp, cb_pad):
     trialsmat = tm(dff, grid)
     h = trialsmat.shape[0]
     w = trialsmat.shape[1]
@@ -743,3 +743,99 @@ def plotCrossday():
             img=cv2.resize(img,size)
             out.write(img)
         out.release()
+
+
+import spectrum
+import pylab
+
+
+def test_spectrum(d, f):
+    plt.clf()
+    norm = True
+    sides = 'centerdc'
+
+    # MA method
+    p = spectrum.pma(d, 15, 30, NFFT=4096)
+    p.plot(label='MA (15, 30)', norm=norm, sides=sides)
+
+    # ARMA method
+    p = spectrum.parma(d, 15, 15, 30, NFFT=4096)
+    p.plot(label='ARMA(15,15)', norm=norm, sides=sides)
+
+    # yulewalker
+    p = spectrum.pyule(d, 15, norm='biased', NFFT=4096)
+    p.plot(label='YuleWalker(15)', norm=norm, sides=sides)
+
+    #burg method
+    p = spectrum.pburg(d, order=15, NFFT=4096)
+    p.plot(label='Burg(15)', norm=norm, sides=sides)
+
+    #covar method
+    p = spectrum.pcovar(d, 15, NFFT=4096)
+    p.plot(label='Covar(15)', norm=norm, sides=sides)
+
+    #modcovar method
+    p = spectrum.pmodcovar(d, 15, NFFT=4096)
+    p.plot(label='Modcovar(15)', norm=norm, sides=sides)
+
+    # correlagram
+    p = spectrum.pcorrelogram(d, lag=15, NFFT=4096)
+    p.plot(label='Correlogram(15)', norm=norm, sides=sides)
+
+    #minvar
+    p = spectrum.pminvar(d, 15, NFFT=4096)
+    p.plot(label='minvar (15)', norm=norm, sides=sides)
+
+    #music
+    p = spectrum.pmusic(d, 15, 11, NFFT=4096)
+    p.plot(label='music (15, 11)', norm=norm, sides=sides)
+
+    #ev
+    p = spectrum.pev(d, 15, 11, NFFT=4096)
+    p.plot(label='ev (15, 11)', norm=norm, sides=sides)
+
+    legend(prop={'size':10}, ncol=2)
+    pylab.ylim([-150, 100])
+
+    p.plot(filename=f)
+
+
+def nextpow2(i):
+    n = 1
+    while n<i:
+        n *= 2
+    return n
+
+
+def test_periodogram(d, f, nfft):
+    p, pp = scipy.signal.periodogram(d, fs=15.63, nfft=nfft)
+    fig = plt.figure()
+    plt.plot(pp)
+    savePlot_fig(fig, f)
+
+
+def test_pca(d, f):
+    pca = sklearn.decomposition.PCA()
+    pca.fit(d)
+    d1 = pca.transform(d)
+    plt.plot(pca.explained_variance_ratio_.cumsum())
+    plt.show()
+    #turning_point=np.diff(re)
+    fig = plt.figure(figsize=[d1.shape[0]/50, d1.shape[1]/5])
+    plt.tight_layout()
+    plt.imshow(np.swapaxes(d1, 0, 1),cmap=plt.get_cmap('turbo'))
+    plt.gca().set_aspect(10)
+    plt.colorbar(shrink=0.2,pad=0)
+    savePlot_fig(fig, f+'.jpg')
+    plt.clf()
+
+def test_nmf(d,f):
+    for n in range(15):
+        nn = n+2
+        nmf = sklearn.decomposition.NMF(d, n_components=nn)
+        nmf.fit(d)
+        d1 = nmf.transform(d)
+        fig = plt.figure(figsize=[d1.shape[0]/20, nn])
+        plt.plot(d)
+        savePlot_fig(fig, str(nn)+f+'.jpg')
+        plt.clf()
