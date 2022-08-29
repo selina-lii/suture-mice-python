@@ -567,8 +567,10 @@ def mark_nonphysiological_neurons():
                 sf_id(db.neu_run, neu['_id'], dict(is_nonphys=True))
 
 
+
+
 def cd_pull_files(plot_type):
-    meta = 'C:\\Users\\selinali\\lab\\sut\\2022-7-22-plots\\cd_%s'%(plot_type)
+    src_folder = 'C:\\Users\\selinali\\lab\\sut\\2022-7-22-plots\\db_%s' % (plot_type)
     for mouse in db.mouse.find({'n_neu_cd':{'$exists':1}}):
         id_mouse = mouse._id
         name = mouse.name
@@ -583,7 +585,6 @@ def cd_pull_files(plot_type):
                 for id_ses, id_neu in enumerate(id_neus):
                     if id_neu!=0:
                         id = '%d%02d%d%04d'%(id_mouse, id_ses, id_run, id_neu-1)
-                        src_folder = 'C:\\Users\\selinali\\lab\\sut\\2022-7-22-plots\\db_%s'%(plot_type)
                         try:
                             shutil.copyfile('%s\\%s.jpg'%(src_folder, id), '%s\\%s.jpg'%(tgt_folder, id))
                         except:
@@ -641,16 +642,18 @@ outdir = "D:\\333_Galaxy Maotuan\\I love studying\\2022 winter\\lab\\08-22 new\\
 cd_meanact_subselect_spontaneously_active_on_baseline_wrapper(db, outdir)
 '''
 
-dirr = "D:\\333_Galaxy Maotuan\\I love studying\\2022 winter\\lab\\suture-mice-python"
+#dirr = "D:\\333_Galaxy Maotuan\\I love studying\\2022 winter\\lab\\suture-mice-python"
+dirr = "C:\\Users\\selinali\\lab\\sut\\dff"
 
-dffs=loadmat(dirr+'\\T01_B72_210205_dff.mat')['dFF'][:,42000:]
+dffs=loadmat(dirr+'\\T01_B72_210205_dff.mat')['dFF'][:,:13999]
 '''nfft=nextpow2(l)
 for f,d in enumerate(dffs):
     print(f)
     test_periodogram(d,dirr+'\\%d.jpg'%f,nfft)'''
 
-test_pca(dffs,dirr+'\\pca_1')
 
+test_pca(dffs,dirr+'\\pca_1','0050')
+test_nmf(dffs)
 
 end_time = time.time()
 print(datetime.now())

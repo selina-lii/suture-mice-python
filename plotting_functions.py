@@ -4,7 +4,7 @@ from math import inf, sqrt
 from LyxTools import *
 import numpy as np
 from scipy.stats import sem
-
+import sklearn.decomposition
 
 def average_response_spontaneous_wrapper(db):
     avgact_vd_neu_in_spont = np.zeros([2, 7, 30])
@@ -813,29 +813,49 @@ def test_periodogram(d, f, nfft):
     plt.plot(pp)
     savePlot_fig(fig, f)
 
+import shutil
+def run_pull_files(plot_type,tgt_folder,id_run,loadings):
+    mkdir(tgt_folder)
+    src_folder = 'C:\\Users\\selinali\\lab\\sut\\2022-7-22-plots\\db_%s' % (plot_type)
+    for i,(id,val) in enumerate(loadings):
+        try:
+            shutil.copyfile('%s\\%s%04d.png' % (src_folder, id_run, id), '%s\\%04d_%s%04d_loading=%.6f.png' % (tgt_folder, i, id_run, id, val))
+        except:
+            pass
 
-def test_pca(d, f):
-    pca = sklearn.decomposition.PCA()
+import numpy as np
+def test_pca(d,f,id_run):
+    pca = sklearn.decomposition.PCA(n_components=20)
     pca.fit(d)
-    d1 = pca.transform(d)
+    components = pca.transform(d)
     plt.plot(pca.explained_variance_ratio_.cumsum())
     plt.show()
     #turning_point=np.diff(re)
-    fig = plt.figure(figsize=[d1.shape[0]/50, d1.shape[1]/5])
+
+    tgt_folder="C:\\Users\\selinali\\lab\\sut\\2022-7-22-plots\\PCA components rank test for T01"
+    components=np.swapaxes(components, 0, 1)
+    for i,compo in enumerate(components):
+        loadings=sorted(enumerate(compo),key=lambda k:(k[1]),reverse=True)
+        run_pull_files('trace', tgt_folder+'\\component_%02d'%(i), id_run, loadings)
+
+
+
+    '''fig = plt.figure(figsize=[components.shape[0]/50, components.shape[1]/5])
     plt.tight_layout()
-    plt.imshow(np.swapaxes(d1, 0, 1),cmap=plt.get_cmap('turbo'))
+    plt.imshow(components,cmap=plt.get_cmap('turbo'))
     plt.gca().set_aspect(10)
     plt.colorbar(shrink=0.2,pad=0)
     savePlot_fig(fig, f+'.jpg')
-    plt.clf()
+    plt.clf()'''
 
-def test_nmf(d,f):
+def test_nmf(d):
     for n in range(15):
         nn = n+2
-        nmf = sklearn.decomposition.NMF(d, n_components=nn)
+        nmf = sklearn.decomposition.NMF(n_components=nn)
         nmf.fit(d)
         d1 = nmf.transform(d)
         fig = plt.figure(figsize=[d1.shape[0]/20, nn])
         plt.plot(d)
-        savePlot_fig(fig, str(nn)+f+'.jpg')
+        savePlot_fig(fig, 'nmf%02d.jpg'%str(nn))
         plt.clf()
+
